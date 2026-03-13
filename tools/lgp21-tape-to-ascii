@@ -7,14 +7,15 @@
 import sys
 import lgp21.charset as charset
 
-if len(sys.argv) < 2:
-    print('lgp21-tape-to-ascii tape.ptp [tape2.ptp ...] >tape.txt')
+if len(sys.argv) < 3:
+    print('lgp21-tape-to-ascii output.txt input.ptp [input2.ptp ...]')
     sys.exit(1)
 
-for filename in sys.argv[1:]:
-    with open(filename, mode='rb') as file:
-        content = file.read()
-        data = []
-        for b in content:
-            data.append(charset.io_punch_to_6bit(int(b)))
-        print(charset.io_6bit_to_ascii(data))
+with open(sys.argv[1], 'w') as output:
+    for filename in sys.argv[2:]:
+        with open(filename, mode='rb') as file:
+            content = file.read()
+            data = []
+            for b in content:
+                data.append(charset.io_punch_to_6bit(int(b)))
+            output.write(charset.io_6bit_to_ascii(data))
