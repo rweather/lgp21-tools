@@ -1,0 +1,12 @@
+#!/usr/bin/python3
+#
+# Run the machine emulator and bootstrap into the "Program Input Routine".
+#
+# Usage: lgp21-run
+
+import sys
+import lgp21.machine as machine
+
+mach = machine.Machine()
+mach.bootstrap()
+mach.run()
