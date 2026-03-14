@@ -23,16 +23,27 @@
 hex_chars = '0123456789fgjkqw'
 hex_chars_upper = '0123456789FGJKQW'
 
+# Characters that represent instruction orders.
+order_chars = 'zbyridnmpeuthcas'
+order_chars_upper = 'ZBYRIDNMPEUTHCAS'
+
 '''
 Convert an integer value into a hexadecimal string.
 '''
-def to_hex(v, min_digits=8):
+def to_hex(v, min_digits=8, order_codes=False):
     global hex_chars
+    global order_chars
     result = ''
+    digit_count = 0
     while v != 0:
-        result += hex_chars[v % 10]
-        v /= 10
+        if digit_count == 4 and order_codes:
+            # Use the instruction order code in this column.
+            result += order_chars[v % 16]
+        else:
+            result += hex_chars[v % 16]
+        v /= 16
         min_digits -= 1
+        digit_count += 1
     while min_digits > 0:
         result += '0'
         min_digits -= 1
@@ -44,11 +55,19 @@ Convert a hexadecimal string into an integer value.
 def from_hex(s):
     global hex_chars
     global hex_chars_upper
+    global order_chars
+    global order_chars_upper
     result = 0
     for ch in s:
         try:
             digit = hex_chars.index(ch)
         except ValueError:
-            digit = hex_chars_upper.index(ch)
+            try:
+                digit = hex_chars_upper.index(ch)
+            except ValueError:
+                try:
+                    digit = order_chars.index(ch)
+                except ValueError:
+                    digit = order_chars_upper.index(ch)
         result = (result << 4) + digit
     return result
