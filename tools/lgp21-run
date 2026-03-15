@@ -9,4 +9,12 @@ import lgp21.machine as machine
 
 with machine.Machine() as mach:
     mach.bootstrap()
-    mach.run()
+    while True:
+        # Run the machine until it halts.
+        mach.run()
+
+        # Reset and jump back into the "Program Input Routine".
+        mach.A = 0
+        mach.C = 0
+        mach.overflow = False
+        mach.resume()
