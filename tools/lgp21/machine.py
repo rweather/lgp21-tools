@@ -197,6 +197,7 @@ class Machine:
     '''
     def step(self):
         # Fetch the next instruction and increment the program counter.
+        iaddr = self.C
         inst = self.memory[self.C]
         self.C = (self.C + 1) & 4095
 
@@ -204,6 +205,11 @@ class Machine:
         opcode = inst & insn.ORDER_MASK
         address = (inst & insn.ADDRESS_MASK) >> insn.ADDRESS_SHIFT
         track = address >> 6
+
+        # Print the instruction - for debugging.
+        #inststr = hexadecimal.to_hex(inst, min_digits=1, order_codes=True)
+        #print("A = %08x" % self.A)
+        #print("%02d%02d  %8s'  %s" % (iaddr / 64, iaddr % 64, inststr, dis.disassemble(inst)))
 
         # Determine what needs to be done.
         match opcode:
@@ -282,7 +288,7 @@ class Machine:
 
             case insn.DIV | insn.DIVM:
                 # D: Divide the value in the accumulator by a value in memory.
-                self.A, overflow = divide(self.A, self.memory[address])
+                self.A, self.overflow = divide(self.A, self.memory[address])
 
             case insn.MUL_L | insn.MUL_LM:
                 # N: Multiply memory with accumulator, return low word.
@@ -332,11 +338,11 @@ class Machine:
 
             case insn.ADD | insn.ADDM:
                 # A: Add the contents of memory to the accumulator.
-                self.A, overflow = from_signed(to_signed(self.A) + to_signed(self.memory[address]))
+                self.A, self.overflow = from_signed(to_signed(self.A) + to_signed(self.memory[address]))
 
             case insn.SUB | insn.SUBM:
                 # S: Subtract the contents of memory from the accumulator.
-                self.A, overflow = from_signed(to_signed(self.A) - to_signed(self.memory[address]))
+                self.A, self.overflow = from_signed(to_signed(self.A) - to_signed(self.memory[address]))
 
     '''
     Run the machine continuously until it halts.  Does nothing if the
