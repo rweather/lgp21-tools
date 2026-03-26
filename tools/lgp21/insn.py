@@ -21,6 +21,7 @@
 
 # Fields within an instruction.
 ORDER_MASK    = 0x800F0000  # Mask out the 5-bit order field.
+ORDER_SHIFT   = 16          # LSB of the order field.
 ADDRESS_MASK  = 0x00003FFC  # Mask out the 12-bit address field.
 ADDRESS_SHIFT = 2           # LSB of the address field.
 TRACK_MASK    = 0x00003F00  # Mask out the 6-bit track number field.

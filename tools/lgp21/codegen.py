@@ -37,6 +37,12 @@ def dec_to_hex_address(value):
     return track * 64 + sector
 
 '''
+Determine if an instruction can be emitted into the final image.
+'''
+def can_emit(insn):
+    return insn != None and insn.emit
+
+'''
 Details about an instruction for the code generator, which may be
 partially instantiated if labels have not yet been resolved.
 '''
@@ -48,9 +54,9 @@ class Instruction:
         self.word = 0
         self.relocatable = False
         self.literal = False
-        self.label = None
+        self.expr = None
         self.location = location
-        self.offset = 0
+        self.emit = True
 
     '''
     Sets the order code for this instruction and clear the other fields.
@@ -59,32 +65,16 @@ class Instruction:
         self.word = order
         self.relocatable = False
         self.literal = False
-        self.label = None
+        self.expr = None
         self.offset = 0
 
     '''
-    Sets the address field for this instruction to a literal value.
+    Sets the address field for this instruction to an expression.
     '''
-    def set_address(self, address):
-        self.word = (self.word & insn.ORDER_MASK) | ((address << insn.ADDRESS_SHIFT) & insn.ADDRESS_MASK)
+    def set_address(self, expr):
         self.relocatable = False
         self.literal = False
-        self.label = None
-        self.offset = 0
-
-    '''
-    Sets the address field for this instruction to a label.
-    '''
-    def set_label(self, label):
-        self.label = label
-        if 'value' in label:
-            # Literal value used as the address field.
-            self.relocatable = False
-        else:
-            # Label has a relocatable address or is a forward reference.
-            self.relocatable = True
-        self.literal = False
-        self.offset = 0
+        self.expr = expr
 
     '''
     Sets this instruction to a literal word value.
@@ -93,43 +83,40 @@ class Instruction:
         self.word = word
         self.relocatable = False
         self.literal = True
-        self.label = None
-        self.offset = 0
+        self.expr = None
 
     '''
-    Sets the offset from the label to include in the address field.
+    Resolves label references in this instruction.  Returns False if any
+    of the labels are undefined.
+    '''
+    def resolve(self, code):
+        if self.expr != None:
+            etype, address = self.expr.eval(code)
+            match etype:
+                case 'undef':
+                    code.error(self.location, "undefined label `%s'" % address)
+                    return False
 
-    This allows label references like "msg+3", "dest-2", and so on.
-    '''
-    def set_offset(self, value):
-        self.offset = value
+                case 'address':
+                    if address < 0 or address > 4095:
+                        code.error(self.location, 'address is out of range')
+                        return False
+                    self.word = (self.word & ~insn.ADDRESS_MASK) | (address << insn.ADDRESS_SHIFT)
+                    self.relocatable = self.expr.has_labels()
 
-    '''
-    Resolve the label reference in this instruction.  Returns False if the
-    label is undefined.
-    '''
-    def resolve(self):
-        if self.label:
-            if 'address' in self.label:
-                # Label is fully resolved.
-                address = self.label['address']
-            elif 'value' in self.label:
-                # Label was defined with an explicit value.
-                address = self.label['value']
-                self.relocatable = False
-            else:
-                return False
-            address += self.offset
-            address = address & 4095
-            self.word = (self.word & ~insn.ADDRESS_MASK) | (address << insn.ADDRESS_SHIFT)
+                case _:
+                    code.error(self.location, 'address operand required')
+                    return False
         return True
 
     '''
     Formats this instruction for the final tape image.
     '''
-    def format(self):
+    def format(self, raw=False):
         if self.literal:
             return hexadecimal.to_hex(self.word) + "'"
+        elif raw:
+            return hexadecimal.to_hex(self.word, min_digits=1) + "'"
         if (self.word & 0x80000000) != 0:
             if self.relocatable:
                 prefix = '800'
@@ -139,7 +126,7 @@ class Instruction:
             prefix = ''
         else:
             prefix = 'x'
-        order = (self.word & 0x000F0000) >> 16
+        order = (self.word & 0x000F0000) >> insn.ORDER_SHIFT
         track = (self.word & insn.TRACK_MASK) >> insn.TRACK_SHIFT
         sector = (self.word & insn.SECTOR_MASK) >> insn.SECTOR_SHIFT
         return prefix + hexadecimal.order_chars[order] + ('%02d%02d' % (track, sector)) + "'"
@@ -157,17 +144,18 @@ class CodeGenerator:
         self.labels = {}
         self.entry_point = None
         self.relocatable = False
+        self.errors = False
+        self.emit = True
 
     '''
     Adds an instruction at the current PC and advances the PC.
-    Returns False if there already was an instruction at the PC.
     '''
     def add_instruction(self, insn):
+        insn.emit = self.emit
         if self.memory[self.PC] != None:
-            return False
+            self.error(insn.location, 'code overwritten at %02d%02d' % (self.PC / 64, self.PC % 64))
         self.memory[self.PC] = insn
         self.PC = (self.PC + 1) & 4095
-        return True
 
     '''
     Gets a label definition for the current location in the program.
@@ -206,6 +194,24 @@ class CodeGenerator:
         return label
 
     '''
+    Sets a label to an explicit address value.  Used for equate symbols.
+    Returns None if the label was already defined
+    '''
+    def set_label_address(self, name, value, location):
+        if name in self.labels:
+            # We have seen this label before.  Already defined or forward ref?
+            label = self.labels[name]
+            if 'value' in label or 'address' in label:
+                # Label is already defined.
+                return None
+            label['address'] = value
+            label['location'] = location
+        else:
+            label = {'name': name, 'address': value, 'location': location}
+            self.labels[name] = label
+        return label
+
+    '''
     Gets a previously defined label or a forward reference to a future label.
     '''
     def get_label(self, name, location):
@@ -229,14 +235,19 @@ class CodeGenerator:
     def resolve(self):
         ok = True
         for insn in self.memory:
-            if insn != None and not insn.resolve():
-                sys.stderr.write("%s: undefined label `%s'" % (insn.location, insn.label['name']))
-                ok = False
+            if insn != None:
+                if insn.resolve(self):
+                    # If the word has the LSB set, then it cannot be
+                    # stored in memory successfully.  Warn about this.
+                    if (insn.word & 1) != 0:
+                        self.warning(insn.location, 'word with LSB set')
+                else:
+                    ok = False
         if self.entry_point != None:
             # Check that the entry point label has been resolved.
             label = self.entry_point
             if not ('address' in label) and not ('value' in label):
-                sys.stderr.write("%s: undefined label `%s'" % (label['location'], label['name']))
+                self.error(label['location'], "undefined label `%s'" % label['name'])
                 ok = False
         return ok
 
@@ -244,7 +255,7 @@ class CodeGenerator:
     Converts the final program into a tape image in ASCII.
     It is assumed that resolve() has already been run successfully.
     '''
-    def to_tape(self):
+    def to_tape(self, max_words_per_line=8):
         # Start with an empty tape.
         tape = ''
 
@@ -252,7 +263,7 @@ class CodeGenerator:
         address = 0
         while address < len(self.memory):
             # Skip unusued instructions to find the next run.
-            while address < len(self.memory) and self.memory[address] == None:
+            while address < len(self.memory) and not can_emit(self.memory[address]):
                 address += 1
             if address >= len(self.memory):
                 # No more runs in the program.
@@ -261,27 +272,28 @@ class CodeGenerator:
             # Write the origin definition for this run.
             if not self.relocatable:
                 tape += ";000%02d%02d'" % (address / 64, address % 64)
+                if max_words_per_line <= 1:
+                    tape += '\n'
                 tape += "/0000000'"
                 word_count = 2
             else:
-                tape += "m40k%02d%02d'" % (address / 64, address % 64)
-                word_count = 1
+                word_count = 0
 
             # Output the words in the run.
-            while address < len(self.memory) and self.memory[address] != None:
+            while address < len(self.memory) and can_emit(self.memory[address]):
                 insn = self.memory[address]
                 if insn.literal:
                     # Output a run of literal words, maximum of 63 words.
                     count = 1
-                    while count < 63 and (address + count) < len(self.memory) and self.memory[address + count] != None and self.memory[address + count].literal:
+                    while count < 63 and (address + count) < len(self.memory) and can_emit(self.memory[address + count]) and self.memory[address + count].literal:
                         count += 1
-                    if word_count >= 8:
+                    if word_count >= max_words_per_line:
                         tape += '\n'
                         word_count = 0
                     tape += ",00000%02d'" % count
                     word_count += 1
                     while count > 0:
-                        if word_count >= 8:
+                        if word_count >= max_words_per_line:
                             tape += '\n'
                             word_count = 0
                         tape += self.memory[address].format()
@@ -290,7 +302,7 @@ class CodeGenerator:
                         count -= 1
                 else:
                     # Output a standard instruction.
-                    if word_count >= 8:
+                    if word_count >= max_words_per_line:
                         tape += '\n'
                         word_count = 0
                     tape += insn.format()
@@ -311,3 +323,16 @@ class CodeGenerator:
 
         # Tape is ready to go.
         return tape
+
+    '''
+    Report an error.
+    '''
+    def error(self, location, message):
+        sys.stderr.write('%s: %s\n' % (location, message))
+        self.errors = True
+
+    '''
+    Report a warning.
+    '''
+    def warning(self, location, message):
+        sys.stderr.write('%s: warning: %s\n' % (location, message))

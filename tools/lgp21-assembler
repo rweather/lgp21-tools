@@ -4,17 +4,74 @@
 #
 # Usage: lgp21-assembler output.txt input.asm
 
+import argparse
 import sys
+import lgp21.assem as assem
 import lgp21.charset as charset
 import lgp21.codegen as codegen
 import lgp21.hexadecimal as hexadecimal
 import lgp21.insn as insn
 
+# Parse the command-line arguments.
+parser = argparse.ArgumentParser(
+    prog='lgp21-assembler',
+    description='Assembler for the LGP-21 machine'
+)
+parser.add_argument(
+    'output_filename',
+    help='name of the output file from the assembler'
+)
+parser.add_argument(
+    'input_filename',
+    help='name of the input assembly source file'
+)
+parser.add_argument(
+    '-b', '--binary',
+    action='store_true',
+    help='output a 6-bit binary tape image instead of ASCII'
+)
+parser.add_argument(
+    '-r', '--relocatable',
+    action='store_true',
+    help='output a relocatable image with no starting origin'
+)
+parser.add_argument(
+    '-w', '--words-per-line',
+    type=int,
+    default=8,
+    help='set the number of words per line on the output tape'
+)
+args = parser.parse_args()
+
+# Create a code generator for the output.
+code = codegen.CodeGenerator()
+code.relocatable = args.relocatable
+
+# Process the input source file.  Stop if there are any errors.
+assem.assemble_input(code, args.input_filename)
+if code.errors or not code.resolve():
+    sys.exit(1)
+
+# Generate the output tape image.
+tape_ascii = code.to_tape(max_words_per_line=args.words_per_line)
+try:
+    if args.binary:
+        tape_6bit = charset.io_ascii_to_6bit(tape_ascii, as_list=True)
+        tape_punch = charset.io_6bit_to_punch(tape_6bit)
+        with open(args.output_filename, 'wb') as file:
+            file.write(bytes(tape_punch))
+    else:
+        with open(args.output_filename, 'w') as file:
+            file.write(tape_ascii)
+except OSError:
+    code.error(args.output_filename, 'could not write to output file')
+    sys.exit(1)
+sys.exit(0)
+
 # Test code for the CodeGenerator class that prints "he11orld" only.
 # This will be replaced with a proper assembler later.
 
 location = 'filename.asm:1'
-cg = codegen.CodeGenerator()
 cg.PC = codegen.dec_to_hex_address(1000)
 
 start = cg.label_for_PC('start', location)

@@ -158,6 +158,11 @@ uppercase_chars = [
 Converts a 6-bit I/O code into a 6-bit punch tape value.
 '''
 def io_6bit_to_punch(x):
+    if type(x) is list:
+        result = []
+        for y in x:
+            result.append(io_6bit_to_punch(y))
+        return result
     return ((x & 0x3E) >> 1) | ((x & 0x01) << 5)
 
 '''
@@ -225,7 +230,7 @@ result to select the case of the first character.
 "as_list" forces the result to be a list of codes even if the string is
 of length 0 or 1.  Otherwise strings of length 0 or 1 are mapped to a code.
 '''
-def io_ascii_to_6bit(x, upper=False, force_shift=False, as_list=False):
+def io_ascii_to_6bit(x, upper=False, force_shift=False, as_list=False, end_in_lower=False):
     global lowercase_chars
     global uppercase_chars
     if len(x) == 0 and not as_list:
@@ -285,4 +290,7 @@ def io_ascii_to_6bit(x, upper=False, force_shift=False, as_list=False):
                     upper = False
                 except ValueError:
                     pass
+        if end_in_lower and upper:
+            # Force a shift to lower case at the end of the string.
+            result.append(4)
         return result
