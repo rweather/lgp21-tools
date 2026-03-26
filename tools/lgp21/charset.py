@@ -281,13 +281,13 @@ def io_ascii_to_6bit(x, upper=False, force_shift=False, as_list=False, end_in_lo
                 mapped = lowercase_chars.index(ch)
                 result.append(4) # Shift to lower case.
                 result.append(mapped)
-                upper = True
+                upper = False
             except ValueError:
                 try:
                     mapped = uppercase_chars.index(ch)
                     result.append(8) # Shift to upper case.
                     result.append(mapped)
-                    upper = False
+                    upper = True
                 except ValueError:
                     pass
         if end_in_lower and upper:
