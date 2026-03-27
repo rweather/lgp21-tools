@@ -148,6 +148,7 @@ class Machine:
         self.BS = 0     # State of the branch switches on the console.
         self.tape = []
         self.tape_posn = 0
+        self.pre_typed_input = []
         self.print_upper = False
         self.input_upper = False
         self.input_buffer = -1
@@ -179,6 +180,21 @@ class Machine:
         # Load the program input routine up on the tape reader.
         self.tape = charset.io_ascii_to_6bit(Program_Input_Routine)
         self.tape_posn = 0
+
+    '''
+    Set up to load a tape after the current one is exhausted.
+
+    If a previous tape was already loaded, this will append the contents
+    of the new tape.
+    '''
+    def load_tape(self, filename, binary=False):
+        if binary:
+            with open(filename, 'rb') as file:
+                for b in file.read():
+                    self.pre_typed_input.append(charset.io_punch_to_6bit(int(b)))
+        else:
+            with open(filename, 'r') as file:
+                self.pre_typed_input = self.pre_typed_input + charset.io_ascii_to_6bit(file.read(), as_list=True, end_in_lower=True)
 
     '''
     Halt the machine.
@@ -403,6 +419,12 @@ class Machine:
                 return 0x20
         elif device == 2:
             # Read from the typewriter.
+            if len(self.pre_typed_input) > 0:
+                # Read from the tape image that was loaded at startup.
+                ch = self.pre_typed_input[0]
+                self.pre_typed_input = self.pre_typed_input[1:]
+                return ch
+
             if self.input_buffer != -1:
                 # Buffered character from last time.
                 ch = self.input_buffer

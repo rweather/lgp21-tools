@@ -2,20 +2,51 @@
 #
 # Run the machine emulator and bootstrap into the "Program Input Routine".
 #
-# Usage: lgp21-run
+# Usage: lgp21-run [options]
 
+import argparse
 import sys
 import lgp21.machine as machine
 
+# Parse the command-line arguments.
+parser = argparse.ArgumentParser(
+    prog='lgp21-run',
+    description='Run programs for the LGP-21 machine'
+)
+parser.add_argument(
+    '-t', '--tape',
+    help='name of a tape to load after PIR'
+)
+parser.add_argument(
+    '-b', '--binary',
+    action='store_true',
+    help='tape image is binary instead of ASCII'
+)
+parser.add_argument(
+    '-v', '--verbose',
+    action='store_true',
+    help='print instructions as they are executed'
+)
+parser.add_argument(
+    '-s', '--stop-on-halt',
+    action='store_true',
+    help='halt stops the emulator'
+)
+args = parser.parse_args()
+
 with machine.Machine() as mach:
-    if len(sys.argv) > 1 and sys.argv[1] == "-v":
+    if args.verbose:
         mach.verbose = True
     mach.bootstrap()
+    if args.tape:
+        mach.load_tape(args.tape, binary=args.binary)
     mach.BS = 32 # Auto-run when a "." command is seen.
     try:
         while True:
             # Run the machine until it halts.
             mach.run()
+            if args.stop_on_halt:
+                break
 
             # Reset and jump back into the "Program Input Routine".
             mach.A = 0
