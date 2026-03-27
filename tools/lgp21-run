@@ -6,6 +6,9 @@
 
 import argparse
 import sys
+import lgp21.assem as assem
+import lgp21.charset as charset
+import lgp21.codegen as codegen
 import lgp21.machine as machine
 
 # Parse the command-line arguments.
@@ -21,6 +24,10 @@ parser.add_argument(
     '-b', '--binary',
     action='store_true',
     help='tape image is binary instead of ASCII'
+)
+parser.add_argument(
+    '-a', '--assembly-source',
+    help='name of a source file to assemble and load'
 )
 parser.add_argument(
     '-v', '--verbose',
@@ -40,6 +47,14 @@ with machine.Machine() as mach:
     mach.bootstrap()
     if args.tape:
         mach.load_tape(args.tape, binary=args.binary)
+    if args.assembly_source:
+        # Assemble and load the supplied source file.
+        code = codegen.CodeGenerator()
+        assem.assemble_input(code, args.assembly_source)
+        if code.errors or not code.resolve():
+            sys.exit(1)
+        tape_data = code.to_tape()
+        mach.pre_typed_input += charset.io_ascii_to_6bit(tape_data, as_list=True)
     mach.BS = 32 # Auto-run when a "." command is seen.
     try:
         while True:
