@@ -24,6 +24,7 @@ import lgp21.charset as charset
 import lgp21.dis as dis
 import lgp21.hexadecimal as hexadecimal
 import lgp21.insn as insn
+import lgp21.timing as timing
 import sys
 
 # Contents of the Program Input Routine #2 tape.
@@ -155,6 +156,8 @@ class Machine:
         self.input_buffer = -1
         self.loading_bootstrap = False
         self.verbose = False
+        self.word_times = 0
+        self.disk_loc = 0
 
     '''
     Bootstraps the machine and loads the program input routine
@@ -219,9 +222,12 @@ class Machine:
     Perform a single instruction step.
     '''
     def step(self):
-        # Fetch the next instruction and increment the program counter.
+        # Fetch the next instruction, account for instruction timings, and
+        # increment the program counter.
         iaddr = self.C
         inst = self.memory[self.C]
+        time, self.disk_loc = timing.word_times_for_insn(self.disk_loc, self.C, inst)
+        self.word_times += time
         self.C = (self.C + 1) & 4095
 
         # Break the instruction up into its constituent parts.
@@ -251,7 +257,9 @@ class Machine:
                         self.halted = True
                 elif track == 2 or track == 3:
                     # Z0200 or Z0300 are no-op instructions.
-                    pass
+                    # Z0300 has been repurposed to print accumulated timing.
+                    if track == 3:
+                        self.print_time()
                 elif (track & self.BS) != track:
                     # Skip the next instruction based on the branch switches.
                     self.C = (self.C + 1) & 4095
@@ -394,6 +402,14 @@ class Machine:
         random.seed()
         for address in range(0, len(self.memory)):
             self.memory[address] = random.randint(0, 0xFFFFFFFF)
+
+    '''
+    Print the word timings since startup.
+    '''
+    def print_time(self):
+        rpm = 1125 # Speed of the disk motor in RPM.
+        secs = self.word_times * (60.0 / rpm / 128.0)
+        print("time: %d word times, %.2f seconds" % (self.word_times, secs));
 
     '''
     Internal handling for input instructions.
