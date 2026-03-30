@@ -336,7 +336,9 @@ def assemble_label(code, location, line):
         code.error(location, "`%s' is already defined" % name)
         return
     rest = line[posn+1:].strip()
-    if len(rest) > 0:
+    if rest.startswith("."):
+        assemble_directive(code, location, rest)
+    elif len(rest) > 0:
         assemble_instruction(code, location, rest)
 
 '''
