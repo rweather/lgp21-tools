@@ -38,11 +38,11 @@ If "advance" is greater than zero, advance that many locations.
 '''
 def next_disk_location(loc, advance=1):
     global optimum_address_locator
+    pos=optimum_address_locator.index(loc&127)
     while advance >= 1:
-        loc = (loc + 1) & 127
-        loc = optimum_address_locator[loc]
+        pos = (pos + 1) & 127
         advance -= 1
-    return loc
+    return optimum_address_locator[pos]
 
 '''
 Get the number of word times for moving from a source address to a
@@ -53,19 +53,15 @@ def word_times_for_addressing(src, dest):
 
     # Find the starting position.
     posn = optimum_address_locator.index(src & 127)
-    start = posn
-
+    poscount = 0
     # Scan forward until we find the destination.
     while optimum_address_locator[posn] != (dest & 127):
         posn = (posn + 1) & 127
-
+        poscount += 1
     # Determine the number of word times, accounting for circular rotation.
     # If the source and destination were the same, this will cause a
     # complete disk rotation to happen to get to the destination.
-    if start < posn:
-        return posn - start
-    else:
-        return (posn + 128) - start
+    return poscount
 
 '''
 Get the number of word times for executing a specific instruction
