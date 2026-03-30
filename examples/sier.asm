@@ -2,17 +2,19 @@
 ; Sierpiński triangle for LGP-21.
 ;
     .entry  start
-.1300:  start:          ld      size
+.1262:  start:          ld      newline
+.1263:                  pr6
+.1300:                  ld      size
 .1301:                  st      y
 ;
 .1302:  outer_loop:     ld      zero
-.1303:                  st      tmp
+.1303:                  jmp     print_sp_next
 ;
 .1304:  print_spaces:   ld      space
 .1305:                  pr6
 .1306:                  ld      tmp
 .1307:                  add     one
-.1308:                  st      tmp
+.1308:  print_sp_next:  st      tmp
 .1309:                  sub     y
 .1310:                  jn      print_spaces
 ;
