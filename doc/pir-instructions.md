@@ -74,13 +74,50 @@ sequence. Leading zeros may be omitted.
 * Example: `,00000004' 1' 22' ' 42'` — enters the four words `1`,
   `22`, `0`, and `42`.
 
-## `v` Hex Fill
+## `m` Hex Block and Checksum
 
-???
+The `m` command introduces a block of hexadecimal words.  The following
+is an example:
+
+    m40k0001'f0591'30195'f01g5'g036k'1024k'202f5'400'
+    f02q5'f02jk'10445'g00w1'q0485'80200'80200'j041k'
+    90479'w047k'g020k'w04w5'g0231'f021k'1041k'80200'
+    10425'q0445'43q00'43q00'80200'903j9'50421'300qk'
+    f00j5'103w5'80200'1000'40'800'f0001'30261'
+    f026k'g0005'f0391'80080200'80043q00'f0241'2017k'f0251'
+    1075k'50419'80080200'904q9'60341'80080200'90411'503wk'
+    80080200'90401'60341'80080200'f0001'80080200'q0415'80200'
+    f0039'w5q276q9'
+
+The first word is the block header and specifies the length of the block
+and the starting address.  For example:
+
+    m40k0001
+
+    m       Instruction name
+    40      Block length N, 0x40 = 64 decimal
+    k       Opcode for a CLEAR instruction
+    0001    Starting address with the LSB set
+
+The header word is followed by the N data words of the block, and then the
+checksum word.
+
+If a data word has the LSB set, then it indicates that data word should be
+relocated using the `/` modifier.  Otherwise the data word is used as-is.
+
+The checksum word is the sum of the header word and the N words of the block,
+ignoring the LSB in each of the words.
 
 ## `.` Stop and Transfer
 
-???
+The `.` command stops the machine and prepares to start executing code at
+the address in the command word.  If the BS32 switch is set, execution
+starts immediately.  Otherwise the machine halts and waits for the user
+to press START.
+
+The following command starts executing code at track 10, sector 0.
+
+    .0001000'
 
 # Full Example
 
