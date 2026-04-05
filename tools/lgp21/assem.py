@@ -344,7 +344,10 @@ def assemble_label(code, location, line):
 '''
 Process a single line of assembly source.
 '''
-def assemble_line(code, location, line):
+def assemble_line(code, location, line, number):
+    # Add the line to the listing file.
+    code.add_line(line.rstrip(), number)
+
     # Strip comments and whitespace from the line.
     # Need to be careful not to treat ; inside a string as a comment.
     posn = 0
@@ -386,6 +389,46 @@ def assemble_input(code, filename):
             for line in file:
                 line_number += 1
                 location = filename + ':' + str(line_number)
-                assemble_line(code, location, line)
+                assemble_line(code, location, line, line_number)
     except OSError:
         code.error(filename, 'could not read source file')
+
+'''
+Generate a listing entry for a label.
+'''
+def generate_listing_label(code, file, label):
+    file.write("%-17s " % label['name'])
+    if 'address' in label:
+        addr = label['address']
+        file.write("%02d%02d" % (int(addr / 64), int(addr % 64)))
+    elif 'value' in label:
+        value = label['value']
+        file.write("&%s ; $%08x ; #%d" % (hexadecimal.to_hex(value), value, value))
+    else:
+        file.write('undefined')
+    file.write('\n')
+
+'''
+Generate a listing file after assembly is complete.
+'''
+def generate_listing(code, filename):
+    try:
+        with open(filename, 'w') as file:
+            for line_info in code.lines:
+                addresses = line_info['addresses']
+                if len(addresses) == 0:
+                    file.write('                ')
+                else:
+                    address = addresses[0]
+                    file.write('%02d%02d %09s  ' % (int(address / 64), int(address % 64), code.memory[address].format()))
+                file.write('%6d  ' % line_info['linenum'])
+                file.write('%s\n' % line_info['text'])
+                if len(addresses) > 0:
+                    for address in addresses[1:]:
+                        file.write('%02d%02d %09s\n' % (int(address / 64), int(address % 64), code.memory[address].format()))
+                    pass
+            file.write('\n')
+            for key, label in sorted(code.labels.items()):
+                generate_listing_label(code, file, label)
+    except OSError:
+        code.error(filename, 'could not write listing file')

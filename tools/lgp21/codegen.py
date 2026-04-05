@@ -146,6 +146,7 @@ class CodeGenerator:
         self.relocatable = False
         self.errors = False
         self.emit = True
+        self.lines = []
 
     '''
     Adds an instruction at the current PC and advances the PC.
@@ -155,6 +156,8 @@ class CodeGenerator:
         if self.memory[self.PC] != None:
             self.error(insn.location, 'code overwritten at %02d%02d' % (self.PC / 64, self.PC % 64))
         self.memory[self.PC] = insn
+        if len(self.lines) > 0:
+            self.lines[len(self.lines) - 1]['addresses'].append(self.PC)
         self.PC = (self.PC + 1) & 4095
 
     '''
@@ -490,3 +493,9 @@ class CodeGenerator:
     '''
     def warning(self, location, message):
         sys.stderr.write('%s: warning: %s\n' % (location, message))
+
+    '''
+    Add a source line for the listing.
+    '''
+    def add_line(self, line, number):
+        self.lines.append({'text': line, 'linenum': number, 'addresses': []})

@@ -63,6 +63,12 @@ parser.add_argument(
     default=2,
     help='set the device for the bootstrap, 0 or 2, default is 2'
 )
+parser.add_argument(
+    '-L', '--listing',
+    type=str,
+    default=None,
+    help='generate a listing file'
+)
 args = parser.parse_args()
 if (args.bootstrap or args.compact_bootstrap) and args.relocatable:
     print('Cannot use -r in bootstrap mode')
@@ -74,7 +80,10 @@ code.relocatable = args.relocatable
 
 # Process the input source file.  Stop if there are any errors.
 assem.assemble_input(code, args.input_filename)
-if code.errors or not code.resolve():
+code.resolve()
+if args.listing:
+    assem.generate_listing(code, args.listing)
+if code.errors:
     sys.exit(1)
 
 # Generate the output tape image.
