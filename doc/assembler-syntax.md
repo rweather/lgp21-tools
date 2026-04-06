@@ -127,6 +127,16 @@ as they contain a decimal point:
 
 The value is scaled by 2^31 to convert it into a LGP-21 word.
 
+To facilitate scaling of constants, loating point values may also include
+a right shift:
+
+    3.1415 >> 4
+
+The value is first shifted to the right by N bits, and then stored. The
+result after the shift must be in the range -1.0 <= n < 1.0. See section
+5 of the LGP-21 Programming Manual for information on scaled fixed point
+arithmetic.
+
 Note: When a word value is stored in a memory location, the least significant
 bit is lost and set to zero when the word is reloaded.  The accumulator
 can store a full 32 bits, although some operations like multiplication and
