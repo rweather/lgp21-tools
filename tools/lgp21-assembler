@@ -92,6 +92,9 @@ if args.bootstrap or args.compact_bootstrap:
     tape_ascii = code.to_bootstrap_tape(bootstrap_addr=ba, device=args.bootstrap_device, max_words_per_line=args.words_per_line, compact=args.compact_bootstrap)
 else:
     tape_ascii = code.to_tape(max_words_per_line=args.words_per_line)
+if args.output_filename.lower().endswith('.ptx'):
+    # Make the output compatible with the .ptx ASCII-ified binary format.
+    tape_ascii = tape_ascii.replace('\n', '<\n')
 try:
     if args.binary:
         tape_6bit = charset.io_ascii_to_6bit(tape_ascii, as_list=True)

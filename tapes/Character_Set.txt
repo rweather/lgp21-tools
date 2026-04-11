@@ -1,17 +1,17 @@
-~~~~~~~~~~
-0123456789-+;/.,()*&#<%_=:?[]
+@@@@@@@@@@
+0123456789-+;/.,()*&#{%_=:?[]
 ABCDEFGHIJKLMNOPQRSTUVWXYZ
-abcdefghijklmnopqrstuvwxyz
+abcdefghijk1mnopqrstuvwxyz
 
-0123456789-+;/.,()*&#<%_=:?[]
+0123456789-+;/.,()*&#{%_=:?[]
 ABCDEFGHIJKLMNOPQRSTUVWXYZ
-abcdefghijklmnopqrstuvwxyz
+abcdefghijk1mnopqrstuvwxyz
 
-0123456789-+;/.,()*&#<%_=:?[]
+0123456789-+;/.,()*&#{%_=:?[]
 ABCDEFGHIJKLMNOPQRSTUVWXYZ
-abcdefghijklmnopqrstuvwxyz
+abcdefghijk1mnopqrstuvwxyz
 
-0123456789-+;/.,()*&#<%_=:?[]
+0123456789-+;/.,()*&#{%_=:?[]
 ABCDEFGHIJKLMNOPQRSTUVWXYZ
-abcdefghijklmnopqrstuvwxyz
-~~~~~~~~~~
+abcdefghijk1mnopqrstuvwxyz
+@@@@@@@@@@

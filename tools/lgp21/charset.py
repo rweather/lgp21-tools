@@ -22,7 +22,7 @@
 # Maps 6-bit codes to their ASCII equivalents.
 # Table III in Appendix C of the LGP-21 Programming Manual.
 lowercase_chars = [
-    '~',            # 0000 00 - Tape Feed, mapped to ~
+    '@',            # 0000 00 - Tape Feed, mapped to @
     'z',            # 0000 01 - z
     '0',            # 0000 10 - 0
     ' ',            # 0000 11 - Space
@@ -85,10 +85,10 @@ lowercase_chars = [
     '',             # 1111 00 - Unused by typewriter
     's',            # 1111 01 - s
     'w',            # 1111 10 - w
-    chr(127)        # 1111 11 - Delete
+    '~'             # 1111 11 - Delete, mapped to ~
 ]
 uppercase_chars = [
-    '~',            # 0000 00 - Tape Feed, mapped to ~
+    '@',            # 0000 00 - Tape Feed, mapped to @
     'Z',            # 0000 01 - Z
     ')',            # 0000 10 - )
     ' ',            # 0000 11 - Space
@@ -122,7 +122,7 @@ uppercase_chars = [
     'V',            # 0111 11 - V
     "'",            # 1000 00 - Conditional stop, mapped to '
     'P',            # 1000 01 - P
-    '<',            # 1000 10 - Sigma, mapped to <
+    '{',            # 1000 10 - Sigma, mapped to {
     'O',            # 1000 11 - O
     '',             # 1001 00 - Unused by typewriter
     'E',            # 1001 01 - E
@@ -151,7 +151,77 @@ uppercase_chars = [
     '',             # 1111 00 - Unused by typewriter
     'S',            # 1111 01 - S
     'W',            # 1111 10 - W
-    chr(127)        # 1111 11 - Delete
+    '~'             # 1111 11 - Delete, mapped to ~
+]
+
+# Alternate encoding for binary tapes encoded in ASCII that
+# preserves the original information as faithfully as possible.
+# Format due to Paul Kimpel.
+binary_chars = [
+    '_',            # 0000 00 - Tape Feed, mapped to underscore
+    'z',            # 0000 01 - z
+    '0',            # 0000 10 - 0
+    ' ',            # 0000 11 - Space
+    '}',            # 0001 00 - Shift to lower case, mapped to }
+    'b',            # 0001 01 - b
+    '1',            # 0001 10 - 1 or lower case L
+    '-',            # 0001 11 - Minus
+    '{',            # 0010 00 - Shift to upper case, mapped to {
+    'y',            # 0010 01 - y
+    '2',            # 0010 10 - 2
+    '+',            # 0010 11 - +
+    '^',            # 0011 00 - Color Shift, mapped to ^
+    'r',            # 0011 01 - r
+    '3',            # 0011 10 - 3
+    ';',            # 0011 11 - ;
+    '<',            # 0100 00 - Carriage Return, mapped to <
+    'i',            # 0100 01 - i
+    '4',            # 0100 10 - 4
+    '/',            # 0100 11 - /
+    '!',            # 0101 00 - Backspace, mapped to !
+    'd',            # 0101 01 - d
+    '5',            # 0101 10 - 5
+    '.',            # 0101 11 - .
+    '|',            # 0110 00 - Tab, mapped to |
+    'n',            # 0110 01 - n
+    '6',            # 0110 10 - 6
+    ',',            # 0110 11 - ,
+    '"',            # 0111 00 - Unused by typewriter, mapped to "
+    'm',            # 0111 01 - m
+    '7',            # 0111 10 - 7
+    'v',            # 0111 11 - v
+    "'",            # 1000 00 - Conditional stop, mapped to '
+    'p',            # 1000 01 - p
+    '8',            # 1000 10 - 8
+    'o',            # 1000 11 - o
+    '$',            # 1001 00 - Unused by typewriter, mapped to $
+    'e',            # 1001 01 - e
+    '9',            # 1001 10 - 9
+    'x',            # 1001 11 - x
+    '%',            # 1010 00 - Unused by typewriter, mapped to %
+    'u',            # 1010 01 - u
+    'f',            # 1010 10 - f
+    '=',            # 1010 11 - Unused by typewriter, mapped to =
+    '&',            # 1011 00 - Unused by typewriter, mapped to &
+    't',            # 1011 01 - t
+    'g',            # 1011 10 - g
+    '>',            # 1011 11 - Unused by typewriter, mapped to >
+    '(',            # 1100 00 - Unused by typewriter, mapped to (
+    'h',            # 1100 01 - h
+    'j',            # 1100 10 - j
+    '?',            # 1100 11 - Unused by typewriter, mapped to ?
+    ')',            # 1101 00 - Unused by typewriter, mapped to )
+    'c',            # 1101 01 - c
+    'k',            # 1101 10 - k
+    '@',            # 1101 11 - Unused by typewriter, mapped to @
+    '*',            # 1110 00 - Unused by typewriter, mapped to *
+    'a',            # 1110 01 - a
+    'q',            # 1110 10 - q
+    '`',            # 1110 11 - Unused by typewriter, mapped to back quote
+    ':',            # 1111 00 - Unused by typewriter, mapped to colon
+    's',            # 1111 01 - s
+    'w',            # 1111 10 - w
+    '~'             # 1111 11 - Delete, mapped to ~
 ]
 
 '''
@@ -294,3 +364,49 @@ def io_ascii_to_6bit(x, upper=False, force_shift=False, as_list=False, end_in_lo
             # Force a shift to lower case at the end of the string.
             result.append(4)
         return result
+
+'''
+Converts a list of 6-bit I/O codes into the ASCII-ified binary ptx format.
+'''
+def io_6bit_to_ptx(x):
+    global binary_chars
+    result = ''
+    for code in x:
+        mapped = binary_chars[code & 0x3F]
+        result += mapped
+        if mapped == '<':
+            # Newline is encoded as '<' but we can also put an
+            # ignored newline afterwards to make it more readable.
+            result += '\n'
+    return result
+
+'''
+Converts an ASCII string into a list of 6-bit I/O codes using the
+ASCII-ified binary ptx format.
+'''
+def io_ptx_to_6bit(x):
+    global binary_chars
+    result = []
+    comment = False
+    for c in x:
+        # The encoding is case-insensitive; but "binary_chars" is not.
+        ch = c.lower()
+
+        # Handle out-of-band metadata comments that explain the tape
+        # but are not part of it.  From '#' to the end of the line.
+        if comment:
+            if ch == '\n':
+                comment = False
+            continue
+        elif ch == '#':
+            comment = True
+            continue
+
+        # Map the character.  Unknown characters are treated as a comment.
+        try:
+            mapped = binary_chars.index(ch)
+            result.append(mapped)
+            continue
+        except ValueError:
+            pass
+    return result

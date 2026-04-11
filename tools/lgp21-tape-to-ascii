@@ -2,13 +2,15 @@
 #
 # Convert binary .ptp tape images into ASCII.
 #
-# Usage: lgp21-tape-to-ascii tape.ptp [tape2.ptp ...] >tape.txt
+# Usage: lgp21-tape-to-ascii output.txt input.ptp [input2.ptp ...]
+#    or: lgp21-tape-to-ascii output.ptx input.ptp [input2.ptp ...]
 
 import sys
 import lgp21.charset as charset
 
 if len(sys.argv) < 3:
-    print('lgp21-tape-to-ascii output.txt input.ptp [input2.ptp ...]')
+    print('Usage: lgp21-tape-to-ascii output.txt input.ptp [input2.ptp ...]')
+    print('   or: lgp21-tape-to-ascii output.ptx input.ptp [input2.ptp ...]')
     sys.exit(1)
 
 with open(sys.argv[1], 'w') as output:
@@ -18,4 +20,7 @@ with open(sys.argv[1], 'w') as output:
             data = []
             for b in content:
                 data.append(charset.io_punch_to_6bit(int(b)))
-            output.write(charset.io_6bit_to_ascii(data))
+            if sys.argv[1].lower().endswith('.ptx'):
+                output.write(charset.io_6bit_to_ptx(data))
+            else:
+                output.write(charset.io_6bit_to_ascii(data))

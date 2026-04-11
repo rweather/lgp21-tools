@@ -3,22 +3,31 @@
 # Convert ASCII text files into a binary .ptp tape image
 #
 # Usage: lgp21-ascii-to-tape output.ptp input.txt [input2.txt ...]
+#    or: lgp21-ascii-to-tape output.ptp input.ptx [input2.ptx ...]
 
 import sys
 import lgp21.charset as charset
 
 if len(sys.argv) < 3:
-    print('lgp21-ascii-to-tape output.ptp input.txt [input2.txt ...]')
+    print('Usage: lgp21-ascii-to-tape output.ptp input.txt [input2.txt ...]')
+    print('   or: lgp21-ascii-to-tape output.ptp input.ptx [input2.ptx ...]')
     sys.exit(1)
 
 with open(sys.argv[1], 'wb') as output:
     for filename in sys.argv[2:]:
         with open(filename, mode='r') as file:
+            is_ptx = filename.lower().endswith('.ptx')
             content = file.read()
             clen = len(content)
-            if clen >= 2 and content[clen-1] == '\n' and content[clen-2] == '~':
+            if clen >= 2 and content[clen-1] == '\n':
                 # Strip spurious EOL after final tape feed symbol.
-                content = content[:-1]
-            data = charset.io_ascii_to_6bit(content, as_list=True)
+                if not is_ptx and content[clen-2] == '@':
+                    content = content[:-1]
+                elif is_ptx and content[clen-2] == '_':
+                    content = content[:-1]
+            if is_ptx:
+                data = charset.io_ptx_to_6bit(content)
+            else:
+                data = charset.io_ascii_to_6bit(content, as_list=True)
             for b in data:
                 output.write(bytes([charset.io_6bit_to_punch(b)]))

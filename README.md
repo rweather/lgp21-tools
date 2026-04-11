@@ -69,6 +69,14 @@ Multiple input files can be concatenated to create a single output file:
     tools/lgp21-tape-to-ascii ascii.txt binary1.ptp binary2.ptp ...
     tools/lgp21-ascii-to-tape binary.ptp ascii1.txt ascii2.txt ...
 
+The text conversion tools will expand or automatically insert upper/lower
+case shift characters as necessary.  This may not work correctly if the tape
+contains true binary data.  Paul Kimpel devised a binary-safe ASCII format
+that avoids the problem.  To activate this, change the extension to "ptx":
+
+    tools/lgp21-tape-to-ascii ascii.ptx binary.ptp
+    tools/lgp21-ascii-to-tape binary.ptp ascii.ptx
+
 Bitsavers has a collection of .ptp tape images in
 [this directory](https://bitsavers.org/pdf/generalPrecision/LGP-21/paper_tapes/)
 that can be used for testing.
