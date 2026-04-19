@@ -72,7 +72,7 @@ LGP-21's disk rotation.  This can be done with `.org`:
       ...
       .org 0436
     msg:
-      w "Hi there"
+      .dw "Hi there"
 
 This can get very tedious, so it is also possible to prefix instructions
 with the address directly:
@@ -82,7 +82,7 @@ with the address directly:
            i 6300
     ...
     .0436: msg:
-           w "hello"
+           .dw "hello"
 
 If an address is not specified, it will automatically increment from the
 previous line.
