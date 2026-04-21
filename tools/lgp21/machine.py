@@ -152,6 +152,7 @@ class Machine:
         self.tape_posn = 0
         self.pre_typed_input = []
         self.print_upper = False
+        self.print_color = False
         self.input_upper = False
         self.input_buffer = -1
         self.loading_bootstrap = False
@@ -340,7 +341,7 @@ class Machine:
                 # I: Shift accumulator right 6 bits and input characters.
                 # The manuals say the special shift is "I6200" but actual
                 # paper tapes from the era use "I6300".  Accept both.
-                if address == 0xF80 or address == 0xFC0:
+                if address >= 0xF80:
                     # Instruction is "I6200", which indicates a 6-bit
                     # shift without any input.
                     self.A = (self.A << 6) & 0xFFFFFFFE
@@ -349,7 +350,7 @@ class Machine:
 
             case insn.INPUT4:
                 # I: Shift accumulator right 4 bits and input characters.
-                if address == 0xF80 or address == 0xFC0:
+                if address >= 0xF80:
                     # Instruction is "-I6200", which indicates a 4-bit
                     # shift without any input.
                     self.A = (self.A << 4) & 0xFFFFFFFE
@@ -506,7 +507,8 @@ class Machine:
                 # ESC dumps the contents of memory.
                 self.dump_memory()
             elif data:
-                print(data, end='\n' if data == '\r' else '', flush=True) # Echo the typewriter input.
+                if data != '\'': #Dont echo cond stop
+                    print(data, end='\n' if data == '\r' else '', flush=True) # Echo the typewriter input.
                 codes = charset.io_ascii_to_6bit(data, upper=self.input_upper, as_list=True)
                 if len(codes) > 1 and codes[0] == 0x04:
                     # Shift to lower case.
@@ -530,6 +532,8 @@ class Machine:
     '''
     def _print(self, device, ch):
         if device == 2:
+            if self.print_color:
+                print("\033[31m", end='', flush=True)
             # Print to the typewriter.
             if ch == 0x04:
                 # Shift to lower case.
@@ -549,9 +553,16 @@ class Machine:
             elif ch == 0x22 and self.print_upper:
                 # Sigma character.
                 print('\u03A3', end='')
+            elif ch == 0x0C:
+                # Color Shift
+                self.print_color = not self.print_color
+            elif ch == 0x3f:
+                # Don't print delete
+                pass
             else:
                 # Some other character.
                 print(charset.io_6bit_to_ascii(ch, upper=self.print_upper), end='', flush=True)
+            print("\033[0m", end='', flush=True)
         elif device == 6:
             # Print to the tape punch.
             # TODO
