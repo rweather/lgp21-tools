@@ -454,6 +454,8 @@ class Machine:
     Internal handling for input instructions.
     '''
     def _input(self, device, bits):
+        #Always shift (bits) zeros in first
+        self.A = (self.A << bits) & 0xFFFFFFFF
         # Keep reading characters until we see a conditional stop.
         ch = self._input_char(device)
         while ch != 0x20:
