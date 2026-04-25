@@ -101,6 +101,10 @@ if args.bootstrap or args.compact_bootstrap:
         tape_ascii = sections[1]
         with open(args.bootstrap_header, 'w') as file:
             file.write(sections[0] + '\n')
+            entry = code.entry_point_address
+            if entry != -1:
+                inst = insn.UNCOND + (entry << insn.ADDRESS_SHIFT)
+                file.write("\nRestart: %s'00000000'\n" % hexadecimal.to_hex(inst, order_codes=True))
 else:
     tape_ascii = code.to_tape(max_words_per_line=args.words_per_line)
 if args.output_filename.lower().endswith('.ptx'):

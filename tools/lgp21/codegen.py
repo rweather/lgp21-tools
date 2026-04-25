@@ -143,6 +143,7 @@ class CodeGenerator:
         self.PC = 0
         self.labels = {}
         self.entry_point = None
+        self.entry_point_address = -1
         self.relocatable = False
         self.errors = False
         self.emit = True
@@ -246,10 +247,15 @@ class CodeGenerator:
                         self.warning(insn.location, 'word with LSB set')
                 else:
                     ok = False
+        self.entry_point_address = -1
         if self.entry_point != None:
             # Check that the entry point label has been resolved.
             label = self.entry_point
-            if not ('address' in label) and not ('value' in label):
+            if 'address' in label:
+                self.entry_point_address = label['address']
+            elif 'value' in label:
+                self.entry_point_address = label['value']
+            else:
                 self.error(label['location'], "undefined label `%s'" % label['name'])
                 ok = False
         return ok
@@ -315,12 +321,8 @@ class CodeGenerator:
                 tape += '\n'
 
         # Jump to the entry point if we have one.
-        if self.entry_point != None and not self.relocatable:
-            if 'address' in self.entry_point:
-                address = self.entry_point['address']
-            elif 'value' in self.entry_point:
-                address = self.entry_point['value']
-            address = address & 4095
+        if self.entry_point_address != -1 and not self.relocatable:
+            address = self.entry_point_address & 4095
             tape += ".000%02d%02d'\n" % (address / 64, address % 64)
             pass
 
@@ -396,12 +398,8 @@ class CodeGenerator:
         #   000u6305''
         #
         count = max_addr - min_addr
-        if self.entry_point != None:
-            if 'address' in self.entry_point:
-                address = self.entry_point['address']
-            elif 'value' in self.entry_point:
-                address = self.entry_point['value']
-            address = address & 4095
+        if self.entry_point_address != -1:
+            address = self.entry_point_address & 4095
             entry_point_word = 0x000A0000 + (address << insn.ADDRESS_SHIFT)
         else:
             entry_point_word = 0
