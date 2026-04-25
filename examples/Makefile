@@ -7,6 +7,7 @@ ASSEM_FLAGS =
 PROGRAMS = \
 	1dlife \
 	fibonacci \
+	hellorld \
 	print_strings \
 	rand_test \
 	sier
