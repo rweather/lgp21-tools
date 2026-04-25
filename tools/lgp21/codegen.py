@@ -372,7 +372,13 @@ class CodeGenerator:
             if word_count >= 2 or word_count >= max_words_per_line:
                 tape += '\n'
                 word_count = 0
-        tape += "normal        '\n\n"
+        if device == 2:
+            # Bootstrapping from the Flexowriter, so let the user know
+            # we are ready to switch to normal mode.
+            tape += "normal        '\n\n"
+        else:
+            # Bootstrapping from the main tape reader.
+            tape += "00000000'\n\n"
 
         #
         # Continue building the bootstrap code:
