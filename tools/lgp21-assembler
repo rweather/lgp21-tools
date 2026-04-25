@@ -64,6 +64,12 @@ parser.add_argument(
     help='set the device for the bootstrap, 0 or 2, default is 2'
 )
 parser.add_argument(
+    '-H', '--bootstrap-header',
+    type=str,
+    default=None,
+    help='split the bootstrap header into a separate file'
+)
+parser.add_argument(
     '-L', '--listing',
     type=str,
     default=None,
@@ -90,6 +96,11 @@ if code.errors:
 if args.bootstrap or args.compact_bootstrap:
     ba = codegen.dec_to_hex_address(int(args.bootstrap_address))
     tape_ascii = code.to_bootstrap_tape(bootstrap_addr=ba, device=args.bootstrap_device, max_words_per_line=args.words_per_line, compact=args.compact_bootstrap)
+    if args.bootstrap_header != None:
+        sections = tape_ascii.split('\n\n')
+        tape_ascii = sections[1]
+        with open(args.bootstrap_header, 'w') as file:
+            file.write(sections[0] + '\n')
 else:
     tape_ascii = code.to_tape(max_words_per_line=args.words_per_line)
 if args.output_filename.lower().endswith('.ptx'):

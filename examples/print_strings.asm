@@ -1,7 +1,7 @@
 ;
 ; Example that prints negative-terminated strings with a subroutine.
 ;
-    .org 1000
+    .org 1100
     .entry start
 start:
     ld      msg1_addr

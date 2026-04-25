@@ -1,4 +1,4 @@
-    .org 1000
+    .org 1200
     .entry start
 start:
     ld  one
