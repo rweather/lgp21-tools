@@ -8,6 +8,7 @@ PROGRAMS = \
 	1dlife \
 	fibonacci \
 	hellorld \
+	mandelbrot \
 	print_strings \
 	rand_test \
 	sier
