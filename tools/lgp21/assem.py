@@ -225,6 +225,7 @@ opcodes = {
     'in6':  { 'order': insn.INPUT6, 'defarg': '0200' },
     'shl6': { 'order': insn.INPUT6, 'arg': '6200' },
     '-i':   { 'order': insn.INPUT4 },
+    'in4':  { 'order': insn.INPUT4, 'defarg': '0200' },
     '-in4': { 'order': insn.INPUT4, 'defarg': '0200' },
     'shl4': { 'order': insn.INPUT4, 'arg': '6200' },
     'm':    { 'order': insn.MUL_H },
