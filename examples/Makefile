@@ -6,6 +6,7 @@ ASSEM_FLAGS =
 
 PROGRAMS = \
 	1dlife \
+	arith_test \
 	fibonacci \
 	hellorld \
 	mandelbrot \

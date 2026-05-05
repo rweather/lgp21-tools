@@ -240,6 +240,22 @@ class Machine:
                 self.pre_typed_input = self.pre_typed_input + charset.io_ascii_to_6bit(file.read(), as_list=True, end_in_lower=True)
 
     '''
+    Set up to load a tape after the current one is exhausted on the main
+    tape reader.
+
+    If a previous tape was already loaded, this will append the contents
+    of the new tape.
+    '''
+    def load_reader_tape(self, filename, binary=False):
+        if binary:
+            with open(filename, 'rb') as file:
+                for b in file.read():
+                    self.tape.append(charset.io_punch_to_6bit(int(b)))
+        else:
+            with open(filename, 'r') as file:
+                self.tape = self.tape + charset.io_ascii_to_6bit(file.read(), as_list=True, end_in_lower=True)
+
+    '''
     Halt the machine.
     '''
     def halt(self):

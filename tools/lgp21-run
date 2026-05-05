@@ -21,6 +21,10 @@ parser.add_argument(
     help='name of a tape to load after PIR'
 )
 parser.add_argument(
+    '-u', '--reader-tape',
+    help='name of a tape to load on the main tape reader'
+)
+parser.add_argument(
     '-b', '--binary',
     action='store_true',
     help='tape image is binary instead of ASCII'
@@ -72,6 +76,8 @@ with machine.Machine() as mach:
             mach.bootstrap_from_tape(args.tape, binary=args.binary)
         else:
             mach.load_tape(args.tape, binary=args.binary)
+    if args.reader_tape:
+        mach.load_reader_tape(args.reader_tape, binary=args.binary)
     if args.assembly_source:
         # Assemble and load the supplied source file.
         code = codegen.CodeGenerator()
