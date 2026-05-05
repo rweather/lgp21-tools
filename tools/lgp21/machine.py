@@ -359,7 +359,7 @@ class Machine:
 
             case insn.DIV | insn.DIVM:
                 # D: Divide the value in the accumulator by a value in memory.
-                self.A, self.overflow = divide(self.A, self.memory[address])
+                self.updateAandOverflow(divide(self.A, self.memory[address]))
 
             case insn.MUL_L | insn.MUL_LM:
                 # N: Multiply memory with accumulator, return low word.
@@ -409,11 +409,20 @@ class Machine:
 
             case insn.ADD | insn.ADDM:
                 # A: Add the contents of memory to the accumulator.
-                self.A, self.overflow = add(self.A, self.memory[address])
+                self.updateAandOverflow(add(self.A, self.memory[address]))
 
             case insn.SUB | insn.SUBM:
                 # S: Subtract the contents of memory from the accumulator.
-                self.A, self.overflow = sub(self.A, self.memory[address])
+                self.updateAandOverflow(sub(self.A, self.memory[address]))
+
+    '''
+    Update the accumulator and the overflow flag.  Overflow can only
+    be set, never reset.  The "-Z" instruction must be used to reset.
+    '''
+    def updateAandOverflow(self, pair):
+        self.A = pair[0]
+        if pair[1]:
+            self.overflow = True
 
     '''
     Run the machine continuously until it halts.  Does nothing if the
