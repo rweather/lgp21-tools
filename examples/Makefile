@@ -12,7 +12,8 @@ PROGRAMS = \
 	mandelbrot \
 	print_strings \
 	rand_test \
-	sier
+	sier \
+	usagi
 
 TAPES_PTP = $(patsubst %,%.ptp,$(PROGRAMS))
 TAPES_TXT = $(patsubst %,%.txt,$(PROGRAMS))
