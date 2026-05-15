@@ -37,42 +37,160 @@ loop:
 ; Compute the next generation of cells.
 ;
 compute:
-    ld      addr_of_board
-    st      posn
-    ld      addr_of_board2
-    sta     count_store
-count_loop:
-    ld      posn
-;
-; Count the neighbors of the cell at the address in A.
-;
-    sub     inc_addr
-    sta     count_nb1
-    sub     inc_addr
-    sta     count_nb2
-    add     three_addr
-    sta     count_nb3
-    add     inc_addr
-    sta     count_nb4
-count_nb1:
-    ld      0000
-count_nb2:
-    add     0000
-count_nb3:
-    add     0000
-count_nb4:
-    add     0000
-count_store:
-    st      0000            ; Store the cell count to the "board2" array.
-;
-    ld      count_store     ; Advance to the next cell to count.
-    add     inc_addr
-    sta     count_store
-    ld      posn
-    add     inc_addr
-    st      posn
-    sub     board_end
-    jn      count_loop
+    ld      board+1
+    add     board+2
+    st      board2
+    ld      board
+    add     board+2
+    add     board+3
+    st      board2+1
+    ld      board
+    add     board+1
+    add     board+3
+    add     board+4
+    st      board2+2
+    ld      board+1
+    add     board+2
+    add     board+4
+    add     board+5
+    st      board2+3
+    ld      board+2
+    add     board+3
+    add     board+5
+    add     board+6
+    st      board2+4
+    ld      board+3
+    add     board+4
+    add     board+6
+    add     board+7
+    st      board2+5
+    ld      board+4
+    add     board+5
+    add     board+7
+    add     board+8
+    st      board2+6
+    ld      board+5
+    add     board+6
+    add     board+8
+    add     board+9
+    st      board2+7
+    ld      board+6
+    add     board+7
+    add     board+9
+    add     board+10
+    st      board2+8
+    ld      board+7
+    add     board+8
+    add     board+10
+    add     board+11
+    st      board2+9
+    ld      board+8
+    add     board+9
+    add     board+11
+    add     board+12
+    st      board2+10
+    ld      board+9
+    add     board+10
+    add     board+12
+    add     board+13
+    st      board2+11
+    ld      board+10
+    add     board+11
+    add     board+13
+    add     board+14
+    st      board2+12
+    ld      board+11
+    add     board+12
+    add     board+14
+    add     board+15
+    st      board2+13
+    ld      board+12
+    add     board+13
+    add     board+15
+    add     board+16
+    st      board2+14
+    ld      board+13
+    add     board+14
+    add     board+16
+    add     board+17
+    st      board2+15
+    ld      board+14
+    add     board+15
+    add     board+17
+    add     board+18
+    st      board2+16
+    ld      board+15
+    add     board+16
+    add     board+18
+    add     board+19
+    st      board2+17
+    ld      board+16
+    add     board+17
+    add     board+19
+    add     board+20
+    st      board2+18
+    ld      board+17
+    add     board+18
+    add     board+20
+    add     board+21
+    st      board2+19
+    ld      board+18
+    add     board+19
+    add     board+21
+    add     board+22
+    st      board2+20
+    ld      board+19
+    add     board+20
+    add     board+22
+    add     board+23
+    st      board2+21
+    ld      board+20
+    add     board+21
+    add     board+23
+    add     board+24
+    st      board2+22
+    ld      board+21
+    add     board+22
+    add     board+24
+    add     board+25
+    st      board2+23
+    ld      board+22
+    add     board+23
+    add     board+25
+    add     board+26
+    st      board2+24
+    ld      board+23
+    add     board+24
+    add     board+26
+    add     board+27
+    st      board2+25
+    ld      board+24
+    add     board+25
+    add     board+27
+    add     board+28
+    st      board2+26
+    ld      board+25
+    add     board+26
+    add     board+28
+    add     board+29
+    st      board2+27
+    ld      board+26
+    add     board+27
+    add     board+29
+    add     board+30
+    st      board2+28
+    ld      board+27
+    add     board+28
+    add     board+30
+    add     board+31
+    st      board2+29
+    ld      board+28
+    add     board+29
+    add     board+31
+    st      board2+30
+    ld      board+29
+    add     board+30
+    st      board2+31
 ;
 ; Iterate over "board" and "board2" to figure out which cells are
 ; alive and dead in the next generation.

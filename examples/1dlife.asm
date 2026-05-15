@@ -51,8 +51,7 @@ compute:
 count_loop:
     ld      posn
 ;
-; Count the neighbors of the cell at the address in A.  The count is left
-; in the variable "ncount" and the state of the current cell is left in A.
+; Count the neighbors of the cell at the address in A.
 ;
     sub     inc_addr
     sta     count_nb1
@@ -128,8 +127,8 @@ compute_store:
     st      0000
     ld      compute_prev_dead
     add     inc_addr
-    st      compute_prev_dead
-    st      compute_prev_alive
+    sta     compute_prev_dead
+    sta     compute_prev_alive
     ld      compute_loop
     add     inc_addr
     sta     compute_loop

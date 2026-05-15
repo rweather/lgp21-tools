@@ -7,6 +7,8 @@ ASSEM_FLAGS =
 PROGRAMS = \
 	1dlife \
 	1dlife-face \
+	1dlife-face-unrolled \
+	1dlife-unrolled \
 	arith_test \
 	fibonacci \
 	hellorld \
