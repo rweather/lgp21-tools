@@ -32,11 +32,13 @@ loop:
     sret    compute_return
     jmp     compute
 ;
-    ld      counter             ; Have we done 50 generations yet?
+    ld      counter             ; Have we finished all generations yet?
     add     inc_addr
     st      counter
     jn      loop                ; No, go back for more.
 ;
+    ld      newline
+    pr6
     hlt                         ; Done!
 ;
 ; Compute the next generation of cells.
@@ -45,130 +47,100 @@ compute:
     ld      addr_of_board
     st      posn
     ld      addr_of_board2
+    sta     count_store
+count_loop:
+    ld      posn
+;
+; Count the neighbors of the cell at the address in A.  The count is left
+; in the variable "ncount" and the state of the current cell is left in A.
+;
+    sub     inc_addr
+    sta     count_nb1
+    sub     inc_addr
+    sta     count_nb2
+    add     three_addr
+    sta     count_nb3
+    add     inc_addr
+    sta     count_nb4
+count_nb1:
+    ld      0000
+count_nb2:
+    add     0000
+count_nb3:
+    add     0000
+count_nb4:
+    add     0000
+count_store:
+    st      0000            ; Store the cell count to the "board2" array.
+;
+    ld      count_store     ; Advance to the next cell to count.
+    add     inc_addr
+    sta     count_store
+    ld      posn
+    add     inc_addr
+    st      posn
+    sub     board_end
+    jn      count_loop
+;
+; Iterate over "board" and "board2" to figure out which cells are
+; alive and dead in the next generation.
+;
+    ld      addr_of_board
+    sta     compute_loop
     sta     compute_store
+    ld      addr_of_board2
+    sta     compute_prev_dead
+    sta     compute_prev_alive
+;
+; Was the previous cell alive or dead?
+;
 compute_loop:
-    ld      posn                ; Count the current cell's neighbors.
-    sret    count_nb_return
-    jmp     count_nb
-    jn      compute_prev_alive  ; Was the previous cell alive or dead?
+    ld      0000
+    shl4
+    jn      compute_prev_alive
 ;
 ; Previously the cell was dead.  Comes alive if 2 or 3 neighbors.
 ;
-    ld      ncount
-    sub     two_addr
+compute_prev_dead:
+    ld      0000
+    sub     twice_live_cell
     jn      new_cell_dead
-    sub     two_addr
+    sub     twice_live_cell
     jn      new_cell_alive
 new_cell_dead:
     ld      zero
-    jmp     compute_store
-new_cell_alive:
-    ld      live_cell
     jmp     compute_store
 ;
 ; Previously the cell was alive.  Cell dies with 0, 1, or 3 neighbors.
 ;
 compute_prev_alive:
-    ld      ncount
-    sub     two_addr
+    ld      0000
+    sub     twice_live_cell
     jn      new_cell_dead
-    sub     inc_addr
+    sub     live_cell
     jn      new_cell_alive
-    sub     inc_addr
+    sub     live_cell
     jn      new_cell_dead
-    jmp     new_cell_alive
+new_cell_alive:
+    ld      live_cell
 ;
 compute_store:
     st      0000
-    ld      compute_store
+    ld      compute_prev_dead
     add     inc_addr
+    st      compute_prev_dead
+    st      compute_prev_alive
+    ld      compute_loop
+    add     inc_addr
+    sta     compute_loop
     sta     compute_store
-    ld      posn
-    add     inc_addr
-    st      posn
-    sub     board_end
+    sub     end_board_load
     jn      compute_loop
-;
-; New generation has been computed, copy "board2" to "board".
-;
-    ld      addr_of_board2
-    sta     copy_load
-    ld      addr_of_board
-    sta     copy_store
-copy_load:
-    ld      0000
-copy_store:
-    st      0000
-    ld      copy_load
-    add     inc_addr
-    st      copy_load
-    ld      copy_store
-    add     inc_addr
-    st      copy_store
-    sub     end_board_store
-    jn      copy_load
 compute_return:
     jmp     0000
 ;
-; Count the neighbors of the cell at the address in A.  The count is
-; left in the variable "ncount" and the state of the current cell is
-; left in A.
-;
-count_nb:
-    sta     count_nb4_done
-    sub     inc_addr
-    sta     count_nb1
-count_nb1:
-    ld      0000
-    jn      count_nb1_1
-    ld      zero
-    jmp     count_nb1_done
-count_nb1_1:
-    ld      inc_addr
-count_nb1_done:
-    st      ncount
-    ld      count_nb1
-    sub     inc_addr
-    sta     count_nb2
-count_nb2:
-    ld      0000
-    jn      count_nb2_1
-    jmp     count_nb2_done
-count_nb2_1:
-    ld      ncount
-    add     inc_addr
-    st      ncount
-count_nb2_done:
-    ld      count_nb4_done
-    add     inc_addr
-    sta     count_nb3
-count_nb3:
-    ld      0000
-    jn      count_nb3_1
-    jmp     count_nb3_done
-count_nb3_1:
-    ld      ncount
-    add     inc_addr
-    st      ncount
-count_nb3_done:
-    ld      count_nb3
-    add     inc_addr
-    sta     count_nb4
-count_nb4:
-    ld      0000
-    jn      count_nb4_1
-    jmp     count_nb4_done
-count_nb4_1:
-    ld      ncount
-    add     inc_addr
-    st      ncount
-count_nb4_done:
-    ld      0000
-count_nb_return:
-    jmp     0000
-;
-; Generate random data into the game board.  Only the MSB of each
-; word matters, indicating whether a cell is alive or dead.
+; Generate random data into the game board.  Only the "live_cell"
+; bit of each word matters, indicating whether a cell is alive or dead.
 ;
 gen_random:
     ld      addr_of_board
@@ -176,6 +148,7 @@ gen_random:
 gen_next:
     sret    rand_return
     jmp     rand
+    and     live_cell       ; AND off the bit we care about only.
 gen_word:
     st      0000
     ld      gen_word
@@ -201,6 +174,7 @@ gen_print:
     sta     gen_print_word
 gen_print_word:
     ld      0000
+    shl4
     jn      gen_print_alive
     ld      cell_dead
     jmp     gen_print_next
@@ -227,7 +201,9 @@ gen_print_return:
 zero:
     .dw     0
 live_cell:
-    .dw     $80000000       ; Value that is used for a live cell.
+    .dw     $08000000       ; Value that is used for a live cell.
+twice_live_cell:
+    .dw     $10000000       ; 2 * live_cell
 shift_upper:
     .dw     $20000000       ; Character that shifts to upper case.
 shift_lower:
@@ -246,6 +222,8 @@ inc_addr:
     .dw     0001
 two_addr:
     .dw     0002
+three_addr:
+    .dw     0003
 board_end:
     .dw     board+0100
 end_board_store:
@@ -253,7 +231,7 @@ end_board_store:
 end_board_load:
     ld      board+0100
 counter_init:
-    .dw     #-200           ; 50 * 4 for 50 generations.
+    .dw     #-100           ; 25 * 4 for 25 generations.
 ;
 ; Include the random number generation routines.
 ;
@@ -264,14 +242,12 @@ counter_init:
     .noemit
 counter:
     .dw     0               ; Generation counter.
-ncount:
-    .dw     0               ; Number of neighbors of a cell.
 posn:
     .dw     0               ; Position in "board" when computing new generation.
 ;
 ; Storage for the game board.  There are two extra words before the
 ; board and two extra words after the board containing zeroes.
-; This makes it easier to count neighbours of the boundary cells.
+; This makes it easier to count neighbors of the boundary cells.
 ; Total of 64 + 4 = 68 words are needed to store the game board.
 ;
     .dw     0, 0
