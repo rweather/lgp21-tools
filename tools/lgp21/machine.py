@@ -471,7 +471,7 @@ class Machine:
     Print the word timings since startup.
     '''
     def print_time(self):
-        rpm = 1125 # Speed of the disk motor in RPM.
+        rpm = 1180 # Speed of the disk motor in RPM.
         secs = self.word_times * (60.0 / rpm / 128.0)
         print("time: %d word times, %.2f seconds" % (self.word_times, secs));
 
