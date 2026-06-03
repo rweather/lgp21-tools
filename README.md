@@ -93,16 +93,11 @@ The emulator boostraps "Program Input Routine #2" into memory which is the
 closest the LGP-21 has to an operating system from what I can tell.
 
 After loading the "OS", the emulator will sit at the prompt waiting for a
-command.  Characters can be typed in to effect commands.  But I currently
-don't know what the commands are!  The LGP-21 uses the single-quote (')
-character as a terminator but that's all I know.
+command.  Characters can be typed in to effect commands as described in
+[Using the Program Input Routine](doc/pir-instructions.md).
 
 Hit the ESC key to dump the entire contents of memory to stdout.  Press
 CTRL-C to abort the emulator.
-
-The emulator makes use of the Python tty and termios modules, which only
-work on Unix/Linux systems.  Patches to make it work under non-POSIX
-systems welcome.
 
 The "-v" option to lgp21-run will dump the register values and
 the current instruction as code is executed.
