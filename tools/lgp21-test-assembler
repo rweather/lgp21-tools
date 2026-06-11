@@ -1,0 +1,409 @@
+#!/usr/bin/python3
+#
+# Test suite for the LGP-21 assembler.
+
+import os
+import sys
+import tempfile
+import traceback
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+
+import lgp21.assem as assem
+import lgp21.codegen as codegen
+import lgp21.insn as insn_mod
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+passed = 0
+failed = 0
+
+
+def assert_equal(a, b, msg=''):
+    assert a == b, '%r != %r%s' % (a, b, (': ' + msg) if msg else '')
+
+
+def assemble(src, extra_files=None):
+    """Assemble src string; return (CodeGenerator, [error strings]).
+    extra_files: dict of {filename: content} placed alongside the main file."""
+    code = codegen.CodeGenerator()
+    errors = []
+    orig_error = code.error.__func__ if hasattr(code.error, '__func__') else None
+
+    def capture_error(location, message):
+        errors.append('%s: %s' % (location, message))
+        codegen.CodeGenerator.error(code, location, message)
+
+    code.error = capture_error
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        main_path = os.path.join(tmpdir, 'test.asm')
+        with open(main_path, 'w') as f:
+            f.write(src)
+        if extra_files:
+            for name, content in extra_files.items():
+                with open(os.path.join(tmpdir, name), 'w') as f:
+                    f.write(content)
+        assem.assemble_input(code, main_path)
+        code.resolve()
+
+    return code, errors
+
+
+def expect_ok(name, src, checks=None, extra_files=None):
+    global passed, failed
+    try:
+        code, errors = assemble(src, extra_files)
+        assert not code.errors, 'unexpected errors: %s' % errors
+        for check in (checks or []):
+            check(code)
+        passed += 1
+    except Exception:
+        failed += 1
+        print('FAIL: %s' % name)
+        traceback.print_exc()
+
+
+def expect_error(name, src, fragment, extra_files=None):
+    global passed, failed
+    try:
+        code, errors = assemble(src, extra_files)
+        assert code.errors, 'expected an error but assembly succeeded'
+        combined = '\n'.join(errors)
+        assert fragment in combined, \
+            'expected %r in errors, got:\n%s' % (fragment, combined)
+        passed += 1
+    except Exception:
+        failed += 1
+        print('FAIL: %s' % name)
+        traceback.print_exc()
+
+
+def word_at(code, dec_addr):
+    """Return resolved word at a decimal LGP-21 address."""
+    ha = codegen.dec_to_hex_address(dec_addr)
+    assert ha is not None, 'bad address %d' % dec_addr
+    i = code.memory[ha]
+    assert i is not None, 'nothing at address %d' % dec_addr
+    return i.word
+
+
+def order_of(word):
+    """Return the order-code portion of a word (including MSB flag bit)."""
+    return word & insn_mod.ORDER_MASK
+
+
+def addr_field(word):
+    return (word >> insn_mod.ADDRESS_SHIFT) & 0xFFF
+
+
+# ---------------------------------------------------------------------------
+# Opcodes and aliases
+# ---------------------------------------------------------------------------
+
+OPCODE_CASES = [
+    ('a',    insn_mod.ADD),
+    ('add',  insn_mod.ADD),
+    ('b',    insn_mod.BRING),
+    ('ld',   insn_mod.BRING),
+    ('c',    insn_mod.CLEAR),
+    ('clr',  insn_mod.CLEAR),
+    ('stc',  insn_mod.CLEAR),
+    ('d',    insn_mod.DIV),
+    ('div',  insn_mod.DIV),
+    ('e',    insn_mod.EXTRACT),
+    ('and',  insn_mod.EXTRACT),
+    ('h',    insn_mod.HOLD),
+    ('st',   insn_mod.HOLD),
+    ('m',    insn_mod.MUL_H),
+    ('mulh', insn_mod.MUL_H),
+    ('n',    insn_mod.MUL_L),
+    ('mull', insn_mod.MUL_L),
+    ('r',    insn_mod.RETURN),
+    ('sret', insn_mod.RETURN),
+    ('s',    insn_mod.SUB),
+    ('sub',  insn_mod.SUB),
+    ('t',    insn_mod.COND),
+    ('jn',   insn_mod.COND),
+    ('-t',   insn_mod.CTRL),
+    ('jnt',  insn_mod.CTRL),
+    ('u',    insn_mod.UNCOND),
+    ('jmp',  insn_mod.UNCOND),
+    ('y',    insn_mod.STORE),
+    ('sta',  insn_mod.STORE),
+    ('z',    insn_mod.STOP),
+    ('-z',   insn_mod.OVERFLOW),
+    ('ovr',  insn_mod.OVERFLOW),
+]
+
+for _mnem, _expected_order in OPCODE_CASES:
+    def _check(code, mnem=_mnem, expected=_expected_order):
+        assert_equal(order_of(word_at(code, 100)), expected, mnem)
+    expect_ok('opcode %s' % _mnem,
+              '.org 0100\n    %s 0200\n' % _mnem,
+              [_check])
+
+# Implicit-operand opcodes (no user operand allowed)
+for _mnem, _expected_order in [('hlt', insn_mod.STOP), ('nop', insn_mod.STOP),
+                                 ('shl6', insn_mod.INPUT6), ('shl4', insn_mod.INPUT4)]:
+    def _check(code, expected=_expected_order):
+        assert_equal(order_of(word_at(code, 100)), expected)
+    expect_ok('opcode %s (implicit)' % _mnem,
+              '.org 0100\n    %s\n' % _mnem,
+              [_check])
+
+# Default-operand opcodes assemble without error when operand is omitted
+for _mnem in ('in6', 'in4', 'pr6', 'pr4'):
+    expect_ok('opcode %s default operand' % _mnem,
+              '.org 0100\n    %s\n' % _mnem)
+
+# Case-insensitivity of opcodes
+expect_ok('opcode uppercase', '.org 0100\n    ADD 0200\n', [
+    lambda code: assert_equal(order_of(word_at(code, 100)), insn_mod.ADD),
+])
+expect_ok('opcode mixed case', '.org 0100\n    Add 0200\n', [
+    lambda code: assert_equal(order_of(word_at(code, 100)), insn_mod.ADD),
+])
+
+# Operand resolves to correct address field
+expect_ok('instruction address field', '.org 0100\n    b 0300\n', [
+    lambda code: assert_equal(addr_field(word_at(code, 100)),
+                              codegen.dec_to_hex_address(300)),
+])
+
+# ---------------------------------------------------------------------------
+# Directives
+# ---------------------------------------------------------------------------
+
+# .org
+expect_ok('.org places code at correct address', '.org 0500\n    hlt\n', [
+    lambda code: assert_equal(code.memory[codegen.dec_to_hex_address(500)] is not None, True),
+    lambda code: assert_equal(code.memory[codegen.dec_to_hex_address(100)], None),
+])
+
+# .entry
+expect_ok('.entry sets entry point', '.org 0100\nstart:\n    hlt\n.entry start\n', [
+    lambda code: assert_equal(code.entry_point_address,
+                              codegen.dec_to_hex_address(100)),
+])
+
+# .dw with various literal types
+expect_ok('.dw decimal integer', '.org 0100\n    .dw #42\n', [
+    lambda code: assert_equal(word_at(code, 100), 42),
+])
+expect_ok('.dw negative integer', '.org 0100\n    .dw #-1\n', [
+    lambda code: assert_equal(word_at(code, 100), 0xFFFFFFFF),
+])
+expect_ok('.dw hex $', '.org 0100\n    .dw $DEADBEEF\n', [
+    lambda code: assert_equal(word_at(code, 100), 0xDEADBEEF),
+])
+expect_ok('.dw multiple values', '.org 0100\n    .dw #1, #2, #3\n', [
+    lambda code: assert_equal(word_at(code, 100), 1),
+    lambda code: assert_equal(word_at(code, 101), 2),
+    lambda code: assert_equal(word_at(code, 102), 3),
+])
+expect_ok('.dw float 0.5', '.org 0100\n    .dw 0.5\n', [
+    lambda code: assert_equal(word_at(code, 100), 0x40000000),
+])
+expect_ok('.dw float -0.5', '.org 0100\n    .dw -0.5\n', [
+    lambda code: assert_equal(word_at(code, 100), 0xC0000000),
+])
+expect_ok('.dw address label', '.org 0100\ntgt:\n    hlt\n.org 0200\n    .dw tgt\n', [
+    lambda code: assert_equal(
+        addr_field(word_at(code, 200)),
+        codegen.dec_to_hex_address(100)),
+])
+
+# .noemit / .emit
+expect_ok('.noemit reserves space without emitting', (
+    '.org 0100\n.noemit\nvar:\n    .dw #0\n.emit\nstart:\n    hlt\n'), [
+    lambda code: assert_equal(code.memory[codegen.dec_to_hex_address(100)].emit, False),
+    lambda code: assert_equal(code.memory[codegen.dec_to_hex_address(101)].emit, True),
+])
+
+# .include
+expect_ok('.include assembles external file',
+    '.org 0100\n.include lib.asm\n',
+    [lambda code: assert_equal(order_of(word_at(code, 100)), insn_mod.STOP)],
+    extra_files={'lib.asm': '    hlt\n'},
+)
+expect_ok('.include path is relative to including file',
+    '.org 0100\n.include sub.asm\n    hlt\n',
+    [lambda code: assert_equal(code.memory[codegen.dec_to_hex_address(100)] is not None, True)],
+    extra_files={'sub.asm': '    b 0200\n'},
+)
+
+# ---------------------------------------------------------------------------
+# Labels
+# ---------------------------------------------------------------------------
+
+expect_ok('label binds to current PC', '.org 0200\nfoo:\n    hlt\n', [
+    lambda code: assert_equal(code.labels['foo']['address'],
+                              codegen.dec_to_hex_address(200)),
+])
+expect_ok('label on same line as instruction', '.org 0200\nfoo: hlt\n', [
+    lambda code: assert_equal(code.labels['foo']['address'],
+                              codegen.dec_to_hex_address(200)),
+])
+expect_ok('address equate used as operand', 'scratch = 0300\n.org 0100\n    b scratch\n', [
+    lambda code: assert_equal(addr_field(word_at(code, 100)),
+                              codegen.dec_to_hex_address(300)),
+])
+expect_ok('integer equate stored in symbol table', 'x = #42\n.org 0100\n    hlt\n', [
+    lambda code: assert_equal(code.labels['x']['value'], 42),
+])
+expect_ok('forward reference resolves', '.org 0100\n    b target\ntarget:\n    hlt\n', [
+    lambda code: assert_equal(addr_field(word_at(code, 100)),
+                              codegen.dec_to_hex_address(101)),
+])
+expect_ok('address label (.NNNN:) sets origin', '.0300: hlt\n', [
+    lambda code: assert_equal(order_of(word_at(code, 300)), insn_mod.STOP),
+    lambda code: assert_equal(code.memory[0], None),
+])
+
+# ---------------------------------------------------------------------------
+# Expressions
+# ---------------------------------------------------------------------------
+
+expect_ok('expression: integer add', '.org 0100\n    .dw #10 + #5\n', [
+    lambda code: assert_equal(word_at(code, 100), 15),
+])
+expect_ok('expression: integer subtract', '.org 0100\n    .dw #10 - #3\n', [
+    lambda code: assert_equal(word_at(code, 100), 7),
+])
+expect_ok('expression: * is current PC', '.org 0300\n    b *\n', [
+    lambda code: assert_equal(addr_field(word_at(code, 300)),
+                              codegen.dec_to_hex_address(300)),
+])
+expect_ok('expression: label + offset', '.org 0100\nbase:\n    hlt\n    b base+1\n', [
+    lambda code: assert_equal(addr_field(word_at(code, 101)),
+                              codegen.dec_to_hex_address(101)),
+])
+expect_ok('expression: float shift right', '.org 0100\n    .dw 0.5 >> 1\n', [
+    lambda code: assert_equal(word_at(code, 100), 0x20000000),
+])
+expect_ok('number: LGP-21 address format', '.org 0100\n    b 0300\n', [
+    lambda code: assert_equal(addr_field(word_at(code, 100)),
+                              codegen.dec_to_hex_address(300)),
+])
+expect_ok('number: decimal prefix #', '.org 0100\n    .dw #255\n', [
+    lambda code: assert_equal(word_at(code, 100), 255),
+])
+expect_ok('number: hex prefix $', '.org 0100\n    .dw $FF\n', [
+    lambda code: assert_equal(word_at(code, 100), 0xFF),
+])
+expect_ok('number: negative decimal', '.org 0100\n    .dw #-1\n', [
+    lambda code: assert_equal(word_at(code, 100), 0xFFFFFFFF),
+])
+
+# ---------------------------------------------------------------------------
+# Error conditions
+# ---------------------------------------------------------------------------
+
+expect_error('unknown opcode', '.org 0100\n    bogus 0100\n', 'unknown opcode')
+expect_error('unknown directive', '.org 0100\n.bogus\n', 'unknown directive')
+expect_error('duplicate label', '.org 0100\nfoo:\nfoo:\n    hlt\n', 'already defined')
+expect_error('undefined label', '.org 0100\n    b missing\n', 'undefined label')
+expect_error('invalid label name starts with digit', '.org 0100\n1bad:\n    hlt\n',
+             'not a valid label name')
+expect_error('implicit operand opcode given explicit arg', '.org 0100\n    hlt 0100\n',
+             'does not take operands')
+expect_error('float out of range', '.org 0100\n    .dw 1.5\n',
+             'floating-point value is out of range')
+expect_error('integer out of range', '.org 0100\n    .dw #5000000000\n',
+             'integer value is out of range')
+expect_error('.org requires address not integer', '.org #42\n',
+             'origin must be a address')
+expect_error('.entry requires label not literal', '.org 0100\n    hlt\n.entry 0100\n',
+             'entry point must be a label')
+expect_error('address out of range', '.org 0100\n    b 9999\n',
+             'out of range')
+expect_error('missing include file', '.include nosuchfile.asm\n',
+             'could not read source file')
+expect_error('extra tokens after expression', '.org 0100\n    b 0100 0200\n',
+             'extra tokens on line')
+expect_error('missing comma in .dw list', '.org 0100\n    .dw #1 #2\n',
+             'missing comma')
+
+# ---------------------------------------------------------------------------
+# Listing output
+# ---------------------------------------------------------------------------
+
+def check_listing(name, src, check_fn):
+    global passed, failed
+    try:
+        code, errors = assemble(src)
+        assert not code.errors, 'unexpected errors: %s' % errors
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.lst', delete=False) as f:
+            lst_path = f.name
+        try:
+            assem.generate_listing(code, lst_path)
+            with open(lst_path) as f:
+                listing = f.read()
+            check_fn(listing)
+            passed += 1
+        finally:
+            os.unlink(lst_path)
+    except Exception:
+        failed += 1
+        print('FAIL: %s' % name)
+        traceback.print_exc()
+
+
+check_listing('listing contains source text',
+    '.org 0100\n    hlt\n',
+    lambda lst: assert_equal('hlt' in lst, True),
+)
+check_listing('listing shows address',
+    '.org 0100\n    hlt\n',
+    lambda lst: assert_equal('0100' in lst, True),
+)
+check_listing('listing shows label in symbol table',
+    '.org 0100\nfoo:\n    hlt\n',
+    lambda lst: assert_equal('foo' in lst, True),
+)
+check_listing('listing shows line numbers',
+    '.org 0100\n    hlt\n',
+    lambda lst: assert_equal(any(c.isdigit() for c in lst), True),
+)
+
+# ---------------------------------------------------------------------------
+# Golden-file tests against shipped examples
+# ---------------------------------------------------------------------------
+
+def check_example(name, asm_path, expected_txt_path):
+    global passed, failed
+    try:
+        code = codegen.CodeGenerator()
+        assem.assemble_input(code, asm_path)
+        code.resolve()
+        assert not code.errors, 'errors assembling %s' % asm_path
+        tape = code.to_tape()
+        with open(expected_txt_path) as f:
+            expected = f.read()
+        assert tape == expected, 'tape output differs from %s' % expected_txt_path
+        passed += 1
+    except Exception:
+        failed += 1
+        print('FAIL: %s' % name)
+        traceback.print_exc()
+
+
+examples_dir = os.path.join(os.path.dirname(__file__), '..', 'examples')
+for _ex in ('hellorld', 'fibonacci', 'print_strings'):
+    _asm = os.path.join(examples_dir, _ex + '.asm')
+    _txt = os.path.join(examples_dir, _ex + '.txt')
+    if os.path.exists(_asm) and os.path.exists(_txt):
+        check_example('example: ' + _ex, _asm, _txt)
+
+# ---------------------------------------------------------------------------
+# Summary
+# ---------------------------------------------------------------------------
+
+total = passed + failed
+print('%d/%d tests passed' % (passed, total))
+if failed:
+    sys.exit(1)
+sys.exit(0)
