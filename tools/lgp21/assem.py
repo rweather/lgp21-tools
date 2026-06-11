@@ -32,6 +32,86 @@ alpha_chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_'
 alphanum_chars = alpha_chars + '0123456789'
 
 '''
+Begin a macro definition. Called when ".macro NAME &p1, &p2" is encountered.
+'''
+def begin_macro_definition(code, location, args):
+    name, params_str = split_line(args)
+    name = name.lower()
+    if not is_valid_label(name):
+        code.error(location, "invalid macro name '%s'" % name)
+        return
+    if name in code.macros:
+        code.error(location, "macro '%s' is already defined" % name)
+        return
+    params = []
+    for p in params_str.split(','):
+        p = p.strip()
+        if not p:
+            continue
+        if not p.startswith('&'):
+            code.error(location, "macro parameter '%s' must start with '&'" % p)
+            return
+        pname = p[1:]
+        if not is_valid_label(pname):
+            code.error(location, "invalid parameter name '%s'" % p)
+            return
+        params.append(p.lower())
+    code.macro_def = {'name': name, 'params': params, 'body': [], 'location': location}
+
+'''
+Finalize the current macro definition. Called when ".mend" is encountered.
+'''
+def end_macro_definition(code, location):
+    if code.macro_def is None:
+        code.error(location, '.mend without .macro')
+        return
+    code.macros[code.macro_def['name']] = code.macro_def
+    code.macro_def = None
+
+'''
+Expand a macro call. Returns True if the name matched a known macro (even on error),
+False if the name is not a macro (so the caller can try other interpretations).
+'''
+def expand_macro(code, location, name, operand):
+    macro = code.macros.get(name.lower())
+    if macro is None:
+        return False
+
+    # Parse comma-separated arguments.
+    if operand.strip():
+        args = [a.strip() for a in operand.split(',')]
+    else:
+        args = []
+
+    if len(args) != len(macro['params']):
+        code.error(location, "macro '%s' expects %d argument(s), got %d" % (
+            name, len(macro['params']), len(args)))
+        return True
+
+    # Build substitution table; sort by length descending so &FOOBAR is
+    # replaced before &FOO when both appear in the same line.
+    code.macro_sysndx += 1
+    subst = {'&sysndx': '%04d' % code.macro_sysndx}
+    for param, arg in zip(macro['params'], args):
+        subst[param] = arg
+    # Sort longest key first to avoid &FOO matching inside &FOOBAR.
+    # Use case-insensitive regex so &SYSNDX, &sysndx, &Sysndx all match.
+    sorted_keys = sorted(subst.keys(), key=len, reverse=True)
+
+    # Expand and assemble each body line.
+    code.macro_depth += 1
+    for body_line in macro['body']:
+        expanded = body_line
+        # Handle &name. concatenation delimiter (e.g. loop_&SYSNDX.next).
+        for key in sorted_keys:
+            expanded = re.sub(re.escape(key + '.'), subst[key], expanded, flags=re.IGNORECASE)
+        for key in sorted_keys:
+            expanded = re.sub(re.escape(key), subst[key], expanded, flags=re.IGNORECASE)
+        assemble_line(code, location, expanded, 0)
+    code.macro_depth -= 1
+    return True
+
+'''
 Determine if a label name is valid.
 '''
 def is_valid_label(name):
@@ -203,6 +283,12 @@ def assemble_directive(code, location, line):
             assemble_input(code, os.path.join(os.path.dirname(current_filename), args))
             code.filename = current_filename
 
+        case '.macro':
+            begin_macro_definition(code, location, args)
+
+        case '.mend':
+            end_macro_definition(code, location)
+
         case _:
             code.error(location, "unknown directive `%s'" % name)
 
@@ -265,6 +351,8 @@ def assemble_instruction(code, location, line):
     name, operand = split_line(line)
     name = name.lower()
     if not name in opcodes:
+        if expand_macro(code, location, name, operand):
+            return
         code.error(location, "unknown opcode `%s'" % name)
         return
     info = opcodes[name]
@@ -375,6 +463,17 @@ def assemble_line(code, location, line, number):
 
     # Assemble the line based on its type.
     line2 = line.lstrip()
+
+    # While collecting a macro body, accumulate lines rather than assembling.
+    if code.macro_def is not None:
+        if line2 == '.mend' or line2.startswith('.mend ') or line2.startswith('.mend\t'):
+            end_macro_definition(code, location)
+        elif line2.startswith('.macro'):
+            code.error(location, 'nested macro definitions are not allowed')
+        else:
+            code.macro_def['body'].append(line)
+        return
+
     if line2.startswith('.'):
         assemble_directive(code, location, line2)
     elif line != line2:
@@ -420,12 +519,16 @@ def generate_listing(code, filename):
         with open(filename, 'w') as file:
             for line_info in code.lines:
                 addresses = line_info['addresses']
+                expanded = line_info.get('macro_depth', 0) > 0
                 if len(addresses) == 0:
                     file.write('                ')
                 else:
                     address = addresses[0]
                     file.write('%02d%02d %09s  ' % (int(address / 64), int(address % 64), code.memory[address].format()))
-                file.write('%6d  ' % line_info['linenum'])
+                linenum = line_info['linenum']
+                linenum_str = '%6d' % linenum if linenum > 0 else '      '
+                prefix = '+' if expanded else ' '
+                file.write('%s%s  ' % (linenum_str, prefix))
                 file.write('%s\n' % line_info['text'])
                 if len(addresses) > 0:
                     for address in addresses[1:]:

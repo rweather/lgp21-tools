@@ -148,6 +148,11 @@ class CodeGenerator:
         self.errors = False
         self.emit = True
         self.lines = []
+        self.macros = {}          # name (lowercase) → {name, params, body, location}
+        self.macro_sysndx = 0    # counter for &SYSNDX
+        self.macro_def = None    # non-None while capturing a definition
+        self.macro_depth = 0     # >0 when inside an expansion (for listing)
+        self.suppress_listing = False  # True while loading library macro files
 
     '''
     Adds an instruction at the current PC and advances the PC.
@@ -502,4 +507,5 @@ class CodeGenerator:
     Add a source line for the listing.
     '''
     def add_line(self, line, number):
-        self.lines.append({'text': line, 'linenum': number, 'addresses': []})
+        if not self.suppress_listing:
+            self.lines.append({'text': line, 'linenum': number, 'addresses': [], 'macro_depth': self.macro_depth})
