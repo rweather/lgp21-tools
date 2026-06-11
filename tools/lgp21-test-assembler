@@ -370,6 +370,235 @@ check_listing('listing shows line numbers',
 )
 
 # ---------------------------------------------------------------------------
+# Macro facility
+# ---------------------------------------------------------------------------
+
+def assemble_with_macros(src, macro_files=None):
+    """Assemble src with optional macro library files pre-loaded (suppressed listing)."""
+    code = codegen.CodeGenerator()
+    errors = []
+
+    def capture_error(location, message):
+        errors.append('%s: %s' % (location, message))
+        codegen.CodeGenerator.error(code, location, message)
+
+    code.error = capture_error
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        if macro_files:
+            macro_dir = os.path.join(tmpdir, 'maclib')
+            os.makedirs(macro_dir)
+            code.suppress_listing = True
+            for fname, content in macro_files.items():
+                mac_path = os.path.join(macro_dir, fname)
+                with open(mac_path, 'w') as f:
+                    f.write(content)
+                assem.assemble_input(code, mac_path)
+            code.suppress_listing = False
+            if code.errors:
+                return code, errors
+
+        main_path = os.path.join(tmpdir, 'test.asm')
+        with open(main_path, 'w') as f:
+            f.write(src)
+        assem.assemble_input(code, main_path)
+        code.resolve()
+
+    return code, errors
+
+
+def expect_ok_macros(name, src, macro_files=None, checks=None):
+    global passed, failed
+    try:
+        code, errors = assemble_with_macros(src, macro_files)
+        assert not code.errors, 'unexpected errors: %s' % errors
+        for check in (checks or []):
+            check(code)
+        passed += 1
+    except Exception:
+        failed += 1
+        print('FAIL: %s' % name)
+        traceback.print_exc()
+
+
+def expect_error_macros(name, src, fragment, macro_files=None):
+    global passed, failed
+    try:
+        code, errors = assemble_with_macros(src, macro_files)
+        assert code.errors, 'expected an error but assembly succeeded'
+        combined = '\n'.join(errors)
+        assert fragment in combined, \
+            'expected %r in errors, got:\n%s' % (fragment, combined)
+        passed += 1
+    except Exception:
+        failed += 1
+        print('FAIL: %s' % name)
+        traceback.print_exc()
+
+
+# No-parameter macro invocation
+expect_ok_macros('macro: no params',
+    '.macro nop2\n    hlt\n    hlt\n.mend\n.org 0100\n    nop2\n',
+    checks=[
+        lambda code: assert_equal(order_of(word_at(code, 100)), insn_mod.STOP),
+        lambda code: assert_equal(order_of(word_at(code, 101)), insn_mod.STOP),
+    ],
+)
+
+# Single-parameter macro substitutes argument
+expect_ok_macros('macro: single param',
+    '.macro ld1 &reg\n    b &reg\n.mend\n.org 0100\n    ld1 0300\n',
+    checks=[
+        lambda code: assert_equal(order_of(word_at(code, 100)), insn_mod.BRING),
+        lambda code: assert_equal(addr_field(word_at(code, 100)),
+                                  codegen.dec_to_hex_address(300)),
+    ],
+)
+
+# Multi-parameter macro
+expect_ok_macros('macro: multi param',
+    '.macro add2 &src, &dst\n    b &src\n    a &dst\n.mend\n.org 0100\n    add2 0200, 0300\n',
+    checks=[
+        lambda code: assert_equal(order_of(word_at(code, 100)), insn_mod.BRING),
+        lambda code: assert_equal(order_of(word_at(code, 101)), insn_mod.ADD),
+        lambda code: assert_equal(addr_field(word_at(code, 101)),
+                                  codegen.dec_to_hex_address(300)),
+    ],
+)
+
+# Case-insensitive macro invocation
+expect_ok_macros('macro: invocation case insensitive',
+    '.macro MyMac\n    hlt\n.mend\n.org 0100\n    MYMAC\n',
+    checks=[
+        lambda code: assert_equal(order_of(word_at(code, 100)), insn_mod.STOP),
+    ],
+)
+
+# &SYSNDX increments on each call, producing distinct values
+expect_ok_macros('macro: SYSNDX unique per call',
+    '.macro mk &v\nlabel_&SYSNDX.: .dw &v\n.mend\n.org 0100\n    mk #1\n    mk #2\n',
+    checks=[
+        lambda code: assert_equal(word_at(code, 100), 1),
+        lambda code: assert_equal(word_at(code, 101), 2),
+        lambda code: assert_equal('label_0001' in code.labels, True),
+        lambda code: assert_equal('label_0002' in code.labels, True),
+    ],
+)
+
+# &SYSNDX without . delimiter: &SYSNDXfoo is an unknown parameter, left unexpanded,
+# so the label contains a literal '&' and fails as an invalid label name.
+expect_error_macros('macro: SYSNDX without dot delimiter is unknown param',
+    '.macro bad\nlabel_&SYSNDXfoo: hlt\n.mend\n.org 0100\n    bad\n',
+    'not a valid label name',
+)
+
+# . delimiter strips correctly: &SYSNDX.foo → 0001foo
+expect_ok_macros('macro: dot delimiter concatenates',
+    '.macro mk\nlp_&SYSNDX.top: hlt\n.mend\n.org 0100\n    mk\n',
+    checks=[
+        lambda code: assert_equal('lp_0001top' in code.labels, True),
+    ],
+)
+
+# Wrong argument count is a hard error
+expect_error_macros('macro: too few args',
+    '.macro needs2 &a, &b\n    b &a\n.mend\n.org 0100\n    needs2 0200\n',
+    'expects 2 argument(s), got 1',
+)
+expect_error_macros('macro: too many args',
+    '.macro needs1 &a\n    b &a\n.mend\n.org 0100\n    needs1 0200, 0300\n',
+    'expects 1 argument(s), got 2',
+)
+
+# Macro redefinition is a hard error
+expect_error_macros('macro: redefinition error',
+    '.macro dup\n    hlt\n.mend\n.macro dup\n    hlt\n.mend\n',
+    "already defined",
+)
+
+# .mend without .macro is a hard error
+expect_error_macros('macro: mend without macro',
+    '.org 0100\n.mend\n',
+    '.mend without .macro',
+)
+
+# Nested macro definitions are not allowed
+expect_error_macros('macro: nested definition not allowed',
+    '.macro outer\n.macro inner\n    hlt\n.mend\n.mend\n',
+    'nested macro definitions are not allowed',
+)
+
+# Library macro files suppress listing; expansions appear with + prefix
+def check_macro_listing(name, src, macro_files, check_fn):
+    global passed, failed
+    try:
+        code, errors = assemble_with_macros(src, macro_files)
+        assert not code.errors, 'unexpected errors: %s' % errors
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.lst', delete=False) as f:
+            lst_path = f.name
+        try:
+            assem.generate_listing(code, lst_path)
+            with open(lst_path) as f:
+                listing = f.read()
+            check_fn(listing)
+            passed += 1
+        finally:
+            os.unlink(lst_path)
+    except Exception:
+        failed += 1
+        print('FAIL: %s' % name)
+        traceback.print_exc()
+
+
+# Expanded lines have + prefix in listing
+check_listing('macro: expanded lines get + prefix',
+    '.macro nopx\n    hlt\n.mend\n.org 0100\n    nopx\n',
+    lambda lst: assert_equal(any(line.lstrip().startswith('+') or '+ ' in line
+                                 for line in lst.splitlines()), True),
+)
+
+# Library macros do not appear in listing (definition suppressed); expansions do
+check_macro_listing('macro: library definition suppressed from listing',
+    '.org 0100\n    libmac\n',
+    {'libmac.mac': '.macro libmac\n    hlt\n.mend\n'},
+    lambda lst: assert_equal('.macro' not in lst and 'libmac' not in lst.splitlines()[0]
+                             if lst.splitlines() else True, True),
+)
+
+# Tape output: hand-written sequence equals macro-expanded equivalent
+_hand_src = '.org 0100\n    b 0200\n    a 0300\n'
+_macro_src = '.macro addto &src, &dst\n    b &src\n    a &dst\n.mend\n.org 0100\n    addto 0200, 0300\n'
+
+def _check_tape_equiv(name, src_a, src_b):
+    global passed, failed
+    try:
+        code_a = codegen.CodeGenerator()
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'a.asm')
+            open(p, 'w').write(src_a)
+            assem.assemble_input(code_a, p)
+        code_a.resolve()
+        assert not code_a.errors
+
+        code_b = codegen.CodeGenerator()
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'b.asm')
+            open(p, 'w').write(src_b)
+            assem.assemble_input(code_b, p)
+        code_b.resolve()
+        assert not code_b.errors
+
+        assert code_a.to_tape() == code_b.to_tape(), \
+            'tape output differs between hand-written and macro-expanded versions'
+        passed += 1
+    except Exception:
+        failed += 1
+        print('FAIL: %s' % name)
+        traceback.print_exc()
+
+_check_tape_equiv('macro: tape output matches hand-written', _hand_src, _macro_src)
+
+# ---------------------------------------------------------------------------
 # Golden-file tests against shipped examples
 # ---------------------------------------------------------------------------
 
