@@ -102,11 +102,13 @@ def expand_macro(code, location, name, operand):
     code.macro_depth += 1
     for body_line in macro['body']:
         expanded = body_line
-        # Handle &name. concatenation delimiter (e.g. loop_&SYSNDX.next).
+        # &name. consumes the period and substitutes (IBM concatenation delimiter).
+        # &name only substitutes when NOT followed by an identifier character,
+        # so &SYSNDXtop is treated as a separate (undefined) parameter, not &SYSNDX + top.
         for key in sorted_keys:
             expanded = re.sub(re.escape(key + '.'), subst[key], expanded, flags=re.IGNORECASE)
         for key in sorted_keys:
-            expanded = re.sub(re.escape(key), subst[key], expanded, flags=re.IGNORECASE)
+            expanded = re.sub(re.escape(key) + r'(?![a-zA-Z0-9_])', subst[key], expanded, flags=re.IGNORECASE)
         assemble_line(code, location, expanded, 0)
     code.macro_depth -= 1
     return True
