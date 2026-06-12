@@ -360,7 +360,7 @@ class CodeGenerator:
         #   000c6300'800i0200'
         #   000c6301'000c6303'
         #   000c6302'800i0200'
-        #   000u6300'normal        '
+        #   000u6300'norma1        '
         #
         words = [
             0x000D0000 + (bootstrap_addr << insn.ADDRESS_SHIFT),
@@ -382,7 +382,7 @@ class CodeGenerator:
         if device == 2:
             # Bootstrapping from the Flexowriter, so let the user know
             # we are ready to switch to normal mode.
-            tape += "normal        '\n\n"
+            tape += "norma1        '\n\n"
         else:
             # Bootstrapping from the main tape reader.
             tape += "00000000'\n\n"
