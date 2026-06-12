@@ -264,7 +264,7 @@ def parse_basic_expression(code, location, tokens):
             # LGP-21 track/sector address constant like 0300, 6317, etc.
             dec = codegen.dec_to_hex_address(int(token[1], 10))
             if dec == None:
-                code.error(location, "address `%s' is out of range" % token)
+                code.error(location, "address `%s' is out of range" % token[1])
                 return None, tokens
             return AddressExpression(dec), tokens
         case 'DECIMAL':
