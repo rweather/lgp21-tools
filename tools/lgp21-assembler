@@ -5,6 +5,8 @@
 # Usage: lgp21-assembler output.txt input.asm
 
 import argparse
+import glob
+import os
 import sys
 import lgp21.assem as assem
 import lgp21.charset as charset
@@ -75,6 +77,14 @@ parser.add_argument(
     default=None,
     help='generate a listing file'
 )
+parser.add_argument(
+    '-I', '--include-macros',
+    type=str,
+    action='append',
+    default=[],
+    metavar='DIR',
+    help='directory containing .mac macro definition files (may be repeated)'
+)
 args = parser.parse_args()
 if (args.bootstrap or args.compact_bootstrap) and args.relocatable:
     print('Cannot use -r in bootstrap mode')
@@ -83,6 +93,17 @@ if (args.bootstrap or args.compact_bootstrap) and args.relocatable:
 # Create a code generator for the output.
 code = codegen.CodeGenerator()
 code.relocatable = args.relocatable
+
+# Load macro definition files from any -I directories before the main source.
+# Suppress listing output during library loading — definitions are invisible,
+# but expansions of those macros in the main source will still appear with '+'.
+code.suppress_listing = True
+for macro_dir in args.include_macros:
+    for mac_file in sorted(glob.glob(os.path.join(macro_dir, '*.mac'))):
+        assem.assemble_input(code, mac_file)
+code.suppress_listing = False
+if code.errors:
+    sys.exit(1)
 
 # Process the input source file.  Stop if there are any errors.
 assem.assemble_input(code, args.input_filename)

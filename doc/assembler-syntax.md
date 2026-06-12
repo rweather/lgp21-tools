@@ -35,6 +35,10 @@ defaults to 6300.
 tape reader and 2 for the Flexowriter.  The default is 2.
 * `-L LISTFILE` or `--listing LISTFILE` specifies the listing output file.
 By default, no listing is generated.
+* `-I DIR` or `--include-macros DIR` loads all `.mac` macro definition files
+from `DIR` before assembling the main source file.  May be repeated to search
+multiple directories.  Macros loaded this way are available throughout the
+source but their definition lines are suppressed from the listing.
 
 ## Case sensitivity
 
@@ -226,6 +230,127 @@ for variables.  `.emit` returns to normal operation.
 `.include FILENAME` includes another source file at this location in the
 parent.  The `FILENAME` is interpreted relative to the including file.
 Does not check for recursive includes; it keeps including forever.
+
+## Macros
+
+Macros allow frequently-used sequences of instructions to be named and
+reused with different arguments, reducing boilerplate and improving
+readability.
+
+### Defining a macro
+
+A macro definition begins with `.macro` and ends with `.mend`:
+
+    .macro NAME &param1, &param2, ...
+        ... body ...
+    .mend
+
+`NAME` follows the same rules as a label.  Each parameter name starts
+with `&` followed by a valid label name.  Parameter names are
+case-insensitive.  A macro with no parameters omits the parameter list:
+
+    .macro HALT
+        hlt
+    .mend
+
+Macro names are case-insensitive at the call site but are stored in
+lower case internally, consistent with how instruction names are treated.
+
+Redefining an existing macro name is an error.  Nested `.macro`
+definitions are not allowed.
+
+### Invoking a macro
+
+A macro is invoked exactly like an instruction — indented, with
+comma-separated arguments matching the parameter list:
+
+    NAME arg1, arg2, ...
+
+It can also appear after a label:
+
+    label: NAME arg1, arg2, ...
+
+Passing the wrong number of arguments is a hard error.
+
+### Parameters
+
+Inside the macro body, every occurrence of `&param` (case-insensitive)
+is replaced by the corresponding argument text before each line is
+assembled.  Substitution replaces the longest matching parameter name
+first so that `&FOOBAR` is not accidentally expanded by a `&FOO`
+parameter.
+
+To concatenate a parameter value with adjacent text without ambiguity,
+follow the parameter name with a period.  The period acts as a delimiter
+and is consumed:
+
+    .macro LOOP &ctr
+    loop_&SYSNDX.top:
+        b &ctr
+        s one
+        h &ctr
+        jn loop_&SYSNDX.done
+        u loop_&SYSNDX.top
+    loop_&SYSNDX.done:
+    .mend
+
+Without the `.` delimiter, `loop_&SYSNDXtop` would be treated as a
+reference to an undefined parameter named `&SYSNDXtop`, not `&SYSNDX`
+followed by the literal text `top`.  The `.` terminates the parameter
+name so that the substitution and the following text are unambiguous.
+
+### &SYSNDX
+
+`&SYSNDX` is a built-in parameter that expands to a unique four-digit
+decimal counter, incremented on every macro call.  It is essential for
+generating unique internal labels when a macro is called more than once:
+
+    .macro COUNTDOWN &ctr
+    loop_&SYSNDX.top:
+        b &ctr
+        s one
+        h &ctr
+        jn loop_&SYSNDX.done
+        u loop_&SYSNDX.top
+    loop_&SYSNDX.done:
+    .mend
+
+        countdown x     ; generates loop_0001top, loop_0001done
+        countdown y     ; generates loop_0002top, loop_0002done
+
+Without `&SYSNDX`, both calls would define the same label names and the
+assembler would report duplicate label errors.
+
+### Macro libraries
+
+Macros can be placed in `.mac` files and loaded with `-I DIR` on the
+command line.  All `.mac` files in the directory are loaded in
+alphabetical order before the main source file is assembled, so every
+macro they define is available throughout the source.
+
+    lgp21-assembler -I maclib output.txt program.asm
+
+The `-I` option may be repeated to search multiple directories.
+
+Macros may also be defined inline in any `.asm` source file; they become
+available from the point of definition onwards.
+
+### Macros in the listing
+
+When a listing is requested with `-L`, each line produced by a macro
+expansion is shown with a `+` prefix immediately after the line number
+column:
+
+    0303    b0301'       22      countdown x
+    0303    b0301'        +      b x
+    0304    s0300'        +      s one
+    0305    h0301'        +      h x
+    0306    t0312'        +      jn loop_0001done
+    0307    u0308'        +      u loop_0001top
+
+Macro definitions loaded from `-I` library directories are suppressed
+from the listing entirely; only their expansions appear.  Inline macro
+definitions in `.asm` files are listed normally.
 
 ## Instructions
 
